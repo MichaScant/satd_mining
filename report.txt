@@ -1,0 +1,50 @@
+==================================================================
+  AI TECHNICAL-DEBT MINING — REPORT   (/Users/michael/queens_summer_project/satd_mining/db/satd_mining.db)
+==================================================================
+
+[1] CORPUS — 101194 SATD instances
+  channel : conversation=90762 (89.7%), code_comment=10429 (10.3%), unknown=3 (0.0%)
+  type    : design=77971 (77.1%), refactoring=13222 (13.1%), bug=9998 (9.9%), unknown=3 (0.0%)
+  introduced by: ai=55513 (54.9%), human=38062 (37.6%), conflict=7619 (7.5%)
+
+[2] DETECTION RATES
+  code-comment SATD: 3925/177326 commits = 2.2%   (baseline AI 2.6% / human 4.25%)
+  code-comment (   ai): 1582/77148 commits = 2.1%   (baseline 2.6%)
+  code-comment (human): 14/160 commits = 8.8%   (baseline 4.25%)
+  conversational (   ai): 52164/438651 utterances = 11.9%  (NEW — no baseline)
+  conversational (human): 36823/723174 utterances = 5.1%  (NEW — no baseline)
+
+[3] WHO POINTED IT OUT FIRST  (Q2)
+  first-pointer  level   n    share
+  -------------  ------  ---  -----
+  ai             commit  215  81.1%
+  ai             file    1    0.4% 
+  human          commit  46   17.4%
+  human          file    3    1.1% 
+  (commit level = SATD self-admission in code; file level = reviewer inline flag)
+
+[4] WHO RESOLVED IT  (Q1)
+  among 113 resolved: ai=12 (10.6%), human=14 (12.4%), unknown=87 (77.0%)
+  of 14 human-resolved: 1 (7.1%) had AI involvement in the fix;  avg AI commits=0.00, avg AI discussion turns=0.50
+
+[5] WAS THE RESOLUTION SUCCESSFUL  (Q3)
+  untracked                  2618  (90.8%)
+  alive                       111  (3.9%)
+  self_resolved_premerge       87  (3.0%)
+  file_deleted                 41  (1.4%)
+  resolved                     26  (0.9%)
+  -> genuine code-change resolutions: 113   | silent comment-only deletions: 0   | success rate among resolved: 100.0%
+
+[6] SURVIVAL (AI-introduced code-comment SATD; days merge -> resolved / censored)
+  n with survival_days=171  (events=66, censored/alive=105)
+  median time-to-resolution (resolved only): 0.0 days
+
+[7] CODING AGENTS: DOCUMENTING & REVISITING THEIR OWN DEBT
+  documents debt in CODE comments : 984/25967 agent commits = 3.8%
+  documents debt in CONVERSATION  : 52164/438651 agent utterances = 11.9%
+  revisits its OWN debt           : 74/219 tracked agent-introduced = 33.8%
+    total agent revisit events=78, mean among revisited=1.05
+  spots debt while answering developers: 4056 admissions (copilot=3463, claude=267, cursor=154, devin=151, codex=14, codegen=6, sweep=1)
+
+  graphs written to /Users/michael/queens_summer_project/satd_mining/graphs/ : satd_by_type.png, introduced_vs_resolved.png, conversational_rate.png, first_pointer.png, status_success.png, survival_km.png, resolver_of_ai_debt.png, ai_spots_debt_in_conversation.png, agent_behavior.png
+==================================================================

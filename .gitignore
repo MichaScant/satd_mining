@@ -1,0 +1,31 @@
+# Large / derived data (never commit)
+db/*.db
+db/*.db-wal
+db/*.db-shm
+db/*.sqlite*
+# downloaded parquet, repo clones, archived diffs, scratch test DBs
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Secrets (GITHUB_TOKEN comes from the environment, never a file)
+.env
+*.token
+secrets.*
+
+# OS / editor cruft
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Optional: uncomment to keep generated outputs out of git
+# graphs/
+# *.csv
+# report.txt

@@ -1,0 +1,12 @@
+# Stage 1-3 (implemented)
+polars>=1.0
+requests>=2.31
+# Stage 5 (cross-PR tracker) — clones + pickaxe
+GitPython>=3.1
+# Optional / later stages
+comment-parser>=1.2    # language-aware comment extraction (Stage 3a fallback)
+pyarrow>=15.0          # parquet backup reader
+lizard>=1.17           # complexity (Stage 3b)
+# CLI tools for Stage 3b are installed separately (pin versions in config.TOOL_VERSIONS):
+#   jscpd (npm), ruff/pylint (pip), eslint (npm), PMD + Checkstyle (jars), SonarQube (server)
+matplotlib
