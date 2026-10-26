@@ -1,16 +1,13 @@
-"""What TRIGGERS a coding agent's technical-debt admission? (elicited vs truly spontaneous)
+"""How often an AI agent NOTICES its own technical debt, and the CIRCUMSTANCES — plus how
+often it REVISITS (removes) debt. Two tracked acts, each with its trigger context.
 
-For every agent debt admission we LOG the trigger by scanning the FULL preceding context,
-not just the immediately-preceding turn:
+  NOTICING   (is_self_admission): agent admits debt it is leaving in its own change.
+  REVISITING (is_debt_removal):   agent removes/resolves a debt item.
 
-  CONVERSATIONAL (authoring agent only): scan every earlier turn in the PR for a developer
-    signal — names debt / alludes to an error / raises a concern-or-question / a
-    changes_requested review event / any human comment at all. Truly spontaneous = NONE of
-    those precede it.
-
-  CODE comments (agent-authored SATD): classify by commit phase —
-    first_attempt = before any review (spontaneous); revision = after review (elicited);
-    human_applied = the commit was a human's, not the agent's (excluded, not self-admission).
+For each, we log the trigger by scanning the FULL preceding PR context (dev named debt /
+alluded to an error / raised a concern-or-question / changes_requested / any human / none).
+Coding agents only, authoring agent only, code blocks stripped. Dialogue = replies/comments
+(PR descriptions reported separately — they're scope narration, noisier).
 
   python analyze_reviewer_elicited_satd.py
 """
@@ -27,39 +24,52 @@ import satd_detect as sd
 
 HERE = Path(__file__).resolve().parent
 
-ADMIT = re.compile(r"\b(you'?re (absolutely )?right|you are right|you'?re correct|good catch|"
-    r"my (mistake|bad|error|fault)|i missed|i overlooked|i forgot|i made (a|an) (mistake|error)|"
-    r"i was wrong|my oversight|an oversight|apolog(y|ies|ize)|i incorrectly|i should have|"
-    r"thanks for catching|that'?s (a|my) (mistake|bug|oversight)|i didn'?t (handle|account|notice))\b", re.I)
-ERR = re.compile(r"\b(doesn'?t work|does not work|not working|won'?t work|broken|breaks?\b|fail(s|ed|ing)?|"
-    r"\berror\b|\bbug\b|buggy|\bwrong\b|incorrect|crash\w*|throws?\b|exception|null ?pointer|\bnpe\b|"
-    r"not right|unexpected|regression|doesn'?t compile|won'?t compile|test(s)? fail|isn'?t working|"
-    r"shouldn'?t\b|this is broken|\btypo\b|not correct|misses)\b", re.I)
-# broad: developer raising ANYTHING (question, suggestion, doubt) that could prompt the agent
-CONCERN = re.compile(r"\?|\b(why|what|how come|hmm+|weird|odd|strange|confus\w*|unclear|not sure|"
-    r"doesn'?t seem|looks? (off|wrong|weird|strange)|suspicious|should (we|this|it|you|be)|"
-    r"could you|can you|would you|please|consider|not quite|are you sure|i think|i'?d prefer|"
-    r"instead of|rather than|needs? to|expected|remove this|change this|revert)\b", re.I)
+ERR = re.compile(r"\b(doesn'?t work|not working|broken|fail\w*|\berror\b|\bbug\b|\bwrong\b|incorrect|"
+    r"crash\w*|exception|not right|unexpected|regression|typo|not correct|misses)\b", re.I)
+CONCERN = re.compile(r"\?|\b(why|what|hmm+|weird|odd|strange|confus\w*|unclear|not sure|"
+    r"should (we|this|it|you|be)|could you|can you|please|consider|instead of|rather than|"
+    r"needs? to|remove this|change this|revert)\b", re.I)
+ORDER = ["dev named debt", "dev alluded to error", "changes_requested",
+         "dev raised concern/question", "neutral dev comment before", "SPONTANEOUS (no dev signal)"]
 
 
 def has_debt(t):
     return sd.detect_conversational(t) is not None
 
 
+def trigger(tl, i):
+    pd = pe = pc = pcr = ph = False
+    for j in range(i):
+        kj, tj, rkj = tl[j][0], tl[j][1], tl[j][3]
+        if rkj == "changes_requested":
+            pcr = True
+        if kj == "human":
+            ph = True
+            if has_debt(tj): pd = True
+            if ERR.search(tj): pe = True
+            if CONCERN.search(tj): pc = True
+    if pd: return "dev named debt"
+    if pe: return "dev alluded to error"
+    if pcr: return "changes_requested"
+    if pc: return "dev raised concern/question"
+    if ph: return "neutral dev comment before"
+    return "SPONTANEOUS (no dev signal)"
+
+
 def run():
     conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
     conn.row_factory = sqlite3.Row
-
     agent_prs = set()
     for r in conn.execute("SELECT DISTINCT pr_id, actor FROM review_events WHERE body IS NOT NULL"):
         if agents.classify_actor(r["actor"])[0] == "coding_agent":
             agent_prs.add(r["pr_id"])
 
-    conv = Counter()
+    notice = {"dialogue": Counter(), "pr_desc": Counter()}
+    revisit = {"dialogue": Counter(), "pr_desc": Counter()}
     rows = []
     for pr in agent_prs:
         evs = [dict(r) for r in conn.execute(
-            "SELECT e.actor actor, e.body body, e.kind kind, p.repo repo, p.pr_number prn, p.author author "
+            "SELECT e.actor actor, e.body body, e.kind kind, p.author author, p.repo repo, p.pr_number prn "
             "FROM review_events e JOIN prs p ON p.id=e.pr_id "
             "WHERE e.pr_id=? AND e.body IS NOT NULL ORDER BY e.ts, e.id", (pr,))]
         if not evs:
@@ -69,70 +79,57 @@ def run():
             continue
         tl = [(agents.classify_actor(e["actor"])[0], sd.strip_code(e["body"] or ""), e["actor"],
                e["kind"], e["repo"], e["prn"]) for e in evs]
-        for i, (kind, txt, actor, rawkind, repo, prn) in enumerate(tl):
+        for i, (k, txt, actor, rk, repo, prn) in enumerate(tl):
             if actor != author:
-                continue                                       # authoring agent only
-            if not (has_debt(txt) or ADMIT.search(txt)):
-                continue                                       # agent expresses debt or admits a mistake
-            # scan ALL preceding turns for any developer signal
-            pdebt = perr = pconcern = pcr = phuman = False
-            for j in range(i):
-                kj, tj, aj, rkj = tl[j][0], tl[j][1], tl[j][2], tl[j][3]
-                if rkj == "changes_requested":
-                    pcr = True
-                if kj == "human":
-                    phuman = True
-                    if has_debt(tj): pdebt = True
-                    if ERR.search(tj): perr = True
-                    if CONCERN.search(tj): pconcern = True
-            if pdebt:      trig = "dev_named_debt"
-            elif perr:     trig = "dev_alluded_error"
-            elif pcr:      trig = "changes_requested"
-            elif pconcern: trig = "dev_raised_concern/question"
-            elif phuman:   trig = "neutral_dev_comment_before"
-            else:          trig = "SPONTANEOUS (no dev signal)"
-            conv[trig] += 1
-            rows.append({"repo": repo, "pr": prn, "agent": actor, "trigger": trig,
-                         "agent_text": txt[:250]})
+                continue
+            bucket = "pr_desc" if rk == "created" else "dialogue"
+            adm = sd.is_self_admission(txt)
+            rem = sd.is_debt_removal(txt)
+            if adm:
+                trg = trigger(tl, i); notice[bucket][trg] += 1
+                rows.append({"act": "notice", "bucket": bucket, "trigger": trg,
+                             "repo": repo, "pr": prn, "agent": actor, "text": adm})
+            if rem:
+                trg = trigger(tl, i); revisit[bucket][trg] += 1
+                rows.append({"act": "revisit", "bucket": bucket, "trigger": trg,
+                             "repo": repo, "pr": prn, "agent": actor, "text": rem})
 
-    # --- CODE comments: phase-based trigger ---
-    code = Counter()
-    for r in conn.execute("""SELECT COALESCE(cm.phase,'no_commit') ph, COUNT(*) n
-        FROM satd_instances i LEFT JOIN commits cm ON cm.sha=i.introducing_sha
-        WHERE i.channel='code_comment' AND i.introducer_kind='coding_agent' GROUP BY ph"""):
-        code[r["ph"]] = r["n"]
+    # code channel (phase)
+    code = {r["ph"]: r["n"] for r in conn.execute(
+        "SELECT COALESCE(cm.phase,'no_commit') ph, COUNT(*) n FROM satd_instances i "
+        "LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
+        "WHERE i.channel='code_comment' AND i.introducer_kind='coding_agent' GROUP BY ph")}
 
     pct = lambda n, d: f"{100*n/d:.1f}%" if d else "n/a"
-    print("=" * 68)
-    print("  WHAT TRIGGERS AN AGENT'S DEBT ADMISSION (full-context, author-only)")
-    print("=" * 68)
-    tot_conv = sum(conv.values())
-    print(f"\nCONVERSATIONAL agent debt/mistake expressions: {tot_conv}")
-    for k, v in conv.most_common():
-        print(f"  {k:32} {v:5}  ({pct(v, tot_conv)})")
-    spont_conv = conv.get("SPONTANEOUS (no dev signal)", 0)
-    elicited_conv = tot_conv - spont_conv
-    print(f"  --> elicited (any dev signal): {elicited_conv} ({pct(elicited_conv,tot_conv)})   "
-          f"truly spontaneous: {spont_conv} ({pct(spont_conv,tot_conv)})")
 
-    print(f"\nCODE-COMMENT SATD (agent-introduced), by commit phase:")
-    tot_code = sum(code.values())
-    fa = code.get("first_attempt", 0); rev = code.get("revision", 0); ha = code.get("human_applied", 0)
-    print(f"  first_attempt (before review = SPONTANEOUS): {fa}  ({pct(fa,tot_code)})")
-    print(f"  revision (after review = ELICITED):          {rev}  ({pct(rev,tot_code)})")
-    print(f"  human_applied (not the agent's commit):      {ha}  ({pct(ha,tot_code)})")
+    def show(title, cnt):
+        tot = sum(cnt.values())
+        print(f"\n{title}: {tot}")
+        for t in ORDER:
+            v = cnt.get(t, 0)
+            if v:
+                print(f"    {t:30} {v:4}  ({pct(v, tot)})")
+        sp = cnt.get("SPONTANEOUS (no dev signal)", 0)
+        print(f"    --> elicited {tot-sp} ({pct(tot-sp,tot)})   spontaneous {sp} ({pct(sp,tot)})")
 
-    print(f"\n>>> TRULY SPONTANEOUS debt admissions (no developer signal at all):")
-    print(f"      conversational: {spont_conv}")
-    print(f"      code (first_attempt): {fa}")
-    print(f"      TOTAL spontaneous: {spont_conv + fa}")
-    print(f"    everything else was elicited by / followed a developer signal.")
+    print("=" * 66)
+    print("  AI NOTICING vs REVISITING ITS OWN TECHNICAL DEBT")
+    print("=" * 66)
+    print("\n### NOTICING (admitting debt it leaves) ###")
+    show("  dialogue (replies/comments)", notice["dialogue"])
+    print(f"  PR descriptions (scope narration, separate): {sum(notice['pr_desc'].values())}")
+    print("\n### REVISITING (removing/resolving debt) ###")
+    show("  dialogue (replies/comments)", revisit["dialogue"])
+    print(f"  PR descriptions: {sum(revisit['pr_desc'].values())}")
+    print("\n### CODE-COMMENT SATD by commit phase (n=2,837) ###")
+    print(f"  first_attempt (spontaneous): {code.get('first_attempt',0)}  |  "
+          f"revision (elicited): {code.get('revision',0)}  |  human_applied (not agent): {code.get('human_applied',0)}")
 
-    out = HERE / "agent_satd_triggers.csv"
+    out = HERE / "agent_notice_revisit.csv"
     with open(out, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["repo", "pr", "agent", "trigger", "agent_text"])
+        w = csv.DictWriter(f, fieldnames=["act", "bucket", "trigger", "repo", "pr", "agent", "text"])
         w.writeheader(); w.writerows(rows)
-    print(f"\nconversational rows with trigger logged: {len(rows)} -> {out.name}")
+    print(f"\n{len(rows)} rows (notice + revisit, with trigger) -> {out.name}")
     conn.close()
 
 

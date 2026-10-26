@@ -129,6 +129,90 @@ def detect_conversational(text):
     return None
 
 
+# ---------------------------------------------------------------- context-aware precision gate
+# No-ML filter that replicates "context" (CASTI's idea) with deterministic rules, to strip the
+# keyword false positives (problem-narration, issue-quotes, user docs) from conversational text.
+# A span counts as a GENUINE self-admission only if a sentence is: first-person about the author's
+# own change, carries a leaving-debt cue, and is NOT describing debt being removed/fixed.
+_FIRST_PERSON = re.compile(r"\b(i|i['’]?ve|i['’]?ll|i['’]?m|i['’]?d|we|we['’]?ve|we['’]?ll|my|our)\b"
+    r"|\bthis\s+(pr|change|commit|approach|implementation|solution|fix|refactor|code|method|logic|is)\b"
+    r"|\bit['’]?s\s+(a|an|still|currently|just|only)\b", re.I)
+# instructional / documentation framing (describing a workaround FOR USERS, not admitting debt)
+_DOCS_CTX = re.compile(r"\b(how\s+to|demonstrat\w+|example\s+(of|that|demonstrat)|tutorial|"
+    r"guide\s+(on|for|to)|shows?\s+(how|users?)|users?\s+can)\b", re.I)
+# leaving/deferring debt (introduction cues) — future/modal fixing counts (debt still there)
+_INTRO_CUE = re.compile(
+    r"\b(for\s+now|for\s+the\s+time\s+being|temporar\w+|follow[-\s]?up|as\s+a\s+follow|in\s+a\s+future|"
+    r"should\s+(be\s+)?(refactor\w*|clean\w*|revisit\w*|improv\w*|be\s+removed|be\s+fixed)|"
+    r"needs?\s+(to\s+be\b|more\b|further\b|cleanup|work\b|revisit\w*)|"
+    r"will\s+(need|fix|address|revisit|refactor|clean|improve)|leav\w*\s+(it|this|them|the)\b|"
+    r"keep\w*\s+(it|this)\s+(as|for)\b|hard[-\s]?cod\w*|placeholder|\bstub(bed|s)?\b|work[-\s]?around|"
+    r"not\s+(yet\s+)?(implement\w*|support\w*|done|handl\w*)|known\s+limitation|quick\s+(and\s+dirty|fix)|"
+    r"band[-\s]?aid|\btodo\b|\bfixme\b|revisit\b|come\s+back\s+to|until\s+(the|we|it|a|this)|"
+    r"did(n['’]?t|\s+not)\s+have\s+time|skip(ped|ping)?\b)", re.I)
+# COMPLETED removal/fix (debt being taken out, not left) — tense matters: past/perfective
+_COMPLETED_FIX = re.compile(r"\b(fixe[ds]|fixed|resolv(ed|es)|remov(ed|es)|eliminat(ed|es)|"
+    r"replac(ed|es)|corrected|cleaned\s+up|got\s+rid\s+of|no\s+longer|instead\s+of)\b", re.I)
+_SENT_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def is_self_admission(text):
+    """Context-aware precision gate. Returns the admitting sentence (<=200 chars) or None.
+    Deterministic, no ML. Trades some recall for precision (our FPs are a precision problem)."""
+    t = strip_code(text)
+    # drop markdown-quoted lines (quoting the dev/issue) and checklist/template lines
+    kept = [ln for ln in t.splitlines()
+            if not re.match(r"\s*>", ln) and not re.match(r"\s*[-*]\s*\[[ xX]\]", ln)]
+    t = "\n".join(kept)
+    for s in _SENT_SPLIT.split(t):
+        s = s.strip()
+        if len(s) < 8:
+            continue
+        if not _FIRST_PERSON.search(s):
+            continue
+        m = _INTRO_CUE.search(s)
+        if not m:
+            continue
+        if _DOCS_CTX.search(s):
+            continue                                      # instructional/user-docs, not an admission
+        # polarity: a completed-fix verb right before the cue = removal — UNLESS "with/into/to a"
+        # sits between (e.g. "replaced it WITH a hardcoded string" = introducing debt)
+        pre = s[max(0, m.start() - 45):m.start()]
+        if _COMPLETED_FIX.search(pre) and not re.search(r"\b(with|into|to\s+a)\b", pre):
+            continue
+        return re.sub(r"\s+", " ", s)[:200]
+    return None
+
+
+# agent REVISITING its own debt: removing/resolving a debt item (not leaving it)
+_REMOVE_VERB = re.compile(r"\b(remov\w+|replac\w+|eliminat\w+|delet\w+|got\s+rid\s+of|clean\w*\s+up|"
+    r"refactor\w*\s+(out|away)|instead\s+of|no\s+longer|getting\s+rid)\b", re.I)
+_DEBT_TERM = re.compile(r"\b(hard[-\s]?cod\w*|work[-\s]?around|hack\w*|\btodo\b|\bfixme\b|placeholder|"
+    r"stub\w*|duplicat\w+|dead\s+code|technical\s+debt|tech\s+debt|temporary\s+\w+)\b", re.I)
+
+
+# agent reporting its own action (implied first-person "I <verb>…")
+_ACTION_START = re.compile(r"^\W*(replac\w+|remov\w+|eliminat\w+|delet\w+|fix\w+|updat\w+|clean\w+|"
+    r"refactor\w+|chang\w+|moved|extract\w+|consolidat\w+)\b", re.I)
+
+
+def is_debt_removal(text):
+    """Agent describes REMOVING/resolving a debt item (revisiting debt). Returns the sentence or None.
+    First-person OR an action-report verb + a removal verb governing a debt term in the same clause."""
+    t = strip_code(text)
+    kept = [ln for ln in t.splitlines() if not re.match(r"\s*>", ln)]
+    t = "\n".join(kept)
+    for s in _SENT_SPLIT.split(t):
+        s = s.strip()
+        if len(s) < 8 or not (_FIRST_PERSON.search(s) or _ACTION_START.search(s)):
+            continue
+        dm = _DEBT_TERM.search(s)
+        rv = _REMOVE_VERB.search(s)
+        if dm and rv and abs(rv.start() - dm.start()) <= 60:
+            return re.sub(r"\s+", " ", s)[:200]
+    return None
+
+
 def normalize(text):
     """Strip comment markers, collapse whitespace, lowercase — stable tracking identity."""
     t = re.sub(r"^[\s/#*<!>=-]+|[\s*/>=-]+$", "", (text or "").strip())

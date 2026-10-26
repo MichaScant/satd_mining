@@ -1,0 +1,450 @@
+act,bucket,trigger,repo,pr,agent,text
+revisit,pr_desc,SPONTANEOUS (no dev signal),ArcadeData/arcadedb,2577,Copilot,- **Cleaner architecture** - eliminated duplicate code
+revisit,pr_desc,SPONTANEOUS (no dev signal),ArcadeData/arcadedb,2587,Copilot,Fixes an issue where SQL queries using ORDER BY with indexed columns returned duplicate records instead of the correct unique results.
+revisit,dialogue,dev alluded to error,ArcadeData/arcadedb,2648,Copilot,Removed both the duplicate try statement and its corresponding closing brace that was at the end of the finally block.
+notice,pr_desc,SPONTANEOUS (no dev signal),Automattic/wordpress-activitypub,2380,Copilot,- Document any errors encountered as well as the steps taken to workaround them.
+notice,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-container-networking,3695,Copilot,This PR addresses the follow-up work for PR #3693 by adding comprehensive unit tests and applying the necessary changes to the function.
+revisit,dialogue,neutral dev comment before,Azure/azure-container-networking,3805,Copilot,** **: Removed hardcoded
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-cpp,6665,Copilot,Fixed the build error by removing the duplicate namespace closing brace and added comprehensive test cases for the HTTP 410 retry functionality.
+notice,dialogue,dev raised concern/question,Azure/azure-sdk-for-cpp,6665,Copilot,This is a compromise solution until Azure Core supports conditional retry behavior.
+notice,dialogue,dev named debt,Azure/azure-sdk-for-js,34552,Copilot,This approach avoids the need for any stubs or extra preparation scripts while still allowing samples to run even if the build fails.
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-js,34552,Copilot,I've completely removed the stub approach and implemented a simpler solution.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-js,34864,Copilot,Updated the TROUBLESHOOTING.md to link to the fake certificate files under assets instead of showing hard-coded certificate content.
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-js,34946,Copilot,Replaced hardcoded with variable reference to maintain consistency with the template variable system.
+revisit,dialogue,dev named debt,Azure/azure-sdk-tools,10842,Copilot,"I've removed the duplicate HashSet and now use just for both purposes (allowing when nested, flagging when at top level)."
+revisit,dialogue,neutral dev comment before,Azure/azure-sdk-tools,10930,Copilot,Fixed the duplicate fixture issue by consolidating the test files and removing the fixture.
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-tools,11432,Copilot,"Replaced over 400 lines of duplicate implementations across all language services (DotNet, Go, Python, Java, JavaScript) with the shared service."
+revisit,dialogue,dev named debt,Azure/azure-sdk-tools,11432,Copilot,I've replaced the hardcoded Windows path separator with for cross-platform compatibility:
+notice,dialogue,dev named debt,Azure/azure-sdk-tools,11432,Copilot,"For now, I've centralized the factory with the necessary dependencies, but a better long-term approach would be to have each language service register its own dependencies or use a proper DI container"
+notice,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-tools,12514,Copilot,"2025-10-15 21:33:43.632Z: $ devcontainer up --id-label Type=codespaces --workspace-folder /var/lib/docker/codespacemount/workspace/azure-sdk-tools --mount type=bind,source=/.codespaces/agent/mount/cac"
+notice,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-tools,12538,Copilot,💬 **What I'm looking for now:**
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-python,41413,Copilot,**Update EOL Date**: Replace the placeholder date (03-31-2025) with the official Azure Spring Apps retirement date from https://aka.ms/asaretirement
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-python,42133,Copilot,- **Eliminated duplicate initialization logic** across orchestrator methods
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-python,42195,Copilot,This PR refactors the claims challenge handling in AzureCliCredential to eliminate code duplication and enhances error messages to include tenant information for more complete and actionable commands.
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-python,42195,Copilot,Removed the duplicate claims checking logic from both and methods.
+notice,dialogue,dev named debt,Azure/azure-sdk-for-net,50182,Copilot,I've updated the Migration_Candidates.md file to use placeholder links instead of actual links.
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-net,50182,Copilot,I've updated the Migration_Candidates.md file to use placeholder links instead of actual links.
+notice,dialogue,dev named debt,Azure/azure-sdk-for-net,50182,Copilot,"I've updated the script to skip libraries that start with ""Microsoft."" in commit f8db57cd4."
+notice,dialogue,dev named debt,Azure/azure-sdk-for-net,50182,Copilot,I've removed the Library_Inventory.json file and updated the Library_Inventory_Guide.md to clarify that the JSON file is for temporary analytical use and should not be checked into the repository.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,50514,Copilot,"I've updated the script to dynamically determine the target framework from each project's .csproj file instead of hardcoding ""net8.0""."
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-net,50610,Copilot,Removed the duplicate file and updated both CI files to use the existing template at .
+revisit,dialogue,dev alluded to error,Azure/azure-sdk-for-net,50564,Copilot,Fixed the ambiguous call sites by removing the duplicate KeyVaultSetting method from the manual model factory.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,51345,Copilot,Removed the TODO comment since the ResourceName property is now available and being consumed.
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-net,51345,Copilot,Removed the completed TODO comment from the ResourceMetadata interface.
+notice,dialogue,dev named debt,Azure/azure-sdk-for-net,51418,Copilot,"This eliminates the duplication and now we only have one hard-coded ""CreateOrUpdate"" string."
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-net,51418,Copilot,"This eliminates the duplication and now we only have one hard-coded ""CreateOrUpdate"" string."
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-net,51418,Copilot,This is much cleaner and eliminates duplication.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,51530,Copilot,Remove duplicate implementation and ensure all tests pass
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,51530,Copilot,Removed the duplicated System.ClientModel private methods ( and ) and the test infrastructure that relied on them.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,51530,Copilot,"I've refactored the public method to call the internal method with a default RuntimeInformationWrapper, eliminating code duplication."
+notice,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-net,51861,Copilot,"This PR adds meaningful XML documentation summaries for resource clients and resource collection clients generated by the Azure Management Generator, with TODO placeholders for parent resource informa"
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,51861,Copilot,"Changed to use format specifier for types (ResourceIdentifier, ArmClient) to generate proper cref tags, and replaced parent resource information with TODO comments since parent resource detection is n"
+notice,dialogue,neutral dev comment before,Azure/azure-sdk-for-net,52051,Copilot,This is much cleaner since the property only needs to be initialized once and never modified afterward.
+revisit,dialogue,dev alluded to error,Azure/azure-sdk-for-net,52229,Copilot,Fixed the path separator issue by using to construct expected paths in the tests instead of hardcoded strings.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,53149,Copilot,Removed duplicate entries from 36 .csproj files.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dailydotdev/apps,5325,Copilot,"This ensures sortable feeds (my-feed, popular) only query once after both async operations complete, eliminating the duplicate network request."
+notice,pr_desc,SPONTANEOUS (no dev signal),Homebrew/brew,20419,Copilot,This PR adds compiler prefix mapping to eliminate embedded temporary paths:
+revisit,pr_desc,SPONTANEOUS (no dev signal),Homebrew/brew,20419,Copilot,This PR adds compiler prefix mapping to eliminate embedded temporary paths:
+revisit,dialogue,dev named debt,Homebrew/brew,20455,Copilot,Removed the unnecessary comment that duplicated the debug message.
+revisit,dialogue,dev named debt,Homebrew/brew,20455,Copilot,Removed the unnecessary comment that duplicated the debug message.
+notice,pr_desc,SPONTANEOUS (no dev signal),Homebrew/brew,20656,Copilot,"This PR fixes the ""Cannot rename a Cask artifact by on Linux: Operation not supported"" error that occurs when installing Casks with the stanza on Linux systems."
+revisit,pr_desc,SPONTANEOUS (no dev signal),Homebrew/brew,20655,Copilot,- **Eliminates code duplication**: The identical path validation logic is now centralized in one location
+revisit,dialogue,dev raised concern/question,Homebrew/brew,20655,Copilot,Removed duplicate code and simplified the implementation.
+revisit,dialogue,dev named debt,Homebrew/brew,20657,Copilot,Removed the duplicate method and folded the logic into existing method.
+revisit,dialogue,dev raised concern/question,Homebrew/brew,20718,Copilot,Changed to use instead of duplicating logic from parent class.
+revisit,dialogue,dev raised concern/question,Homebrew/brew,20718,Copilot,Refactored to use to get the parent class result instead of duplicating the existing logic.
+notice,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-python,41663,Copilot,"This PR fixes 8 pylint errors in the azure-ai-ml library that need to be resolved before pylint version 3.3.6 is enforced on July 14, 2025."
+revisit,pr_desc,SPONTANEOUS (no dev signal),NethermindEth/nethermind,9208,Copilot,"This PR applies the performance optimizations from PR #9195 to and classes, and introduces shared helper code to eliminate duplication between all three RLP processing implementations."
+revisit,dialogue,dev named debt,camunda/camunda,35888,Copilot,"Removed the 3 duplicate OffsetDateTime imports from UserTaskPropertiesImpl.java, keeping only one since the class does use OffsetDateTime for dueDate and followUpDate fields."
+revisit,dialogue,dev named debt,camunda/camunda,35888,Copilot,Removed the 2 duplicate OffsetDateTime imports from ElementInstanceImpl.java and cleaned up similar duplicate imports across all other classes in the codebase.
+revisit,dialogue,dev named debt,camunda/camunda,35888,Copilot,Removed the duplicate OffsetDateTime import in ProcessInstance.java.
+notice,dialogue,dev raised concern/question,camunda/camunda,37382,Copilot,"Since I cannot force push to fix the commit messages (the report_progress tool doesn't support force push operations), the commit messages would need to be manually fixed by someone with force push ac"
+notice,dialogue,neutral dev comment before,camunda/camunda,37617,Copilot,I've completed the follow-up work and fixed the REST DTO generation:
+revisit,dialogue,dev alluded to error,camunda/camunda,37617,Copilot,Fixed import ordering and removed duplicate imports in configuration files.
+revisit,dialogue,dev named debt,camunda/camunda,37638,Copilot,Fixed annotation placement by moving @Deprecated to the proper position and removing the duplicate annotation.
+revisit,dialogue,dev named debt,camunda/camunda,37638,Copilot,Fixed annotation placement by moving @Deprecated to the proper position and removing the duplicate annotation in StreamJobsResponse.java.
+revisit,dialogue,dev named debt,camunda/camunda,37638,Copilot,"Fixed annotation placement by moving @Deprecated to the proper position, removed the duplicate annotation, and merged the two javadoc blocks into a single comprehensive block in BackoffSupplier.java."
+revisit,dialogue,dev named debt,camunda/camunda,37638,Copilot,Removed the duplicate javadoc start line (/**) in JobClient.java.
+revisit,dialogue,dev named debt,camunda/camunda,37638,Copilot,"Fixed annotation placement by moving @Deprecated to the proper position, removed the duplicate annotation, and merged the two javadoc blocks into a single comprehensive block in JobHandler.java."
+revisit,dialogue,dev alluded to error,dotCMS/core,33402,Copilot,**Removed duplicate definitions**: Cleaned up duplicate enum declarations that were causing conflicts
+notice,dialogue,dev raised concern/question,dotnet/maui,32470,Copilot,"In , we skip calling it for the last part and handle assignment entirely in ."
+notice,dialogue,dev named debt,dotnet/maui,32470,Copilot,I'll create a follow-up issue to add integration tests for these scenarios.
+notice,dialogue,dev named debt,dotnet/maui,32470,Copilot,I recommend addressing this in a separate follow-up PR where we can:
+notice,dialogue,dev named debt,dotnet/maui,32470,Copilot,"Since this test doesn't verify the exact generated code with the ID embedded, this line should be removed."
+revisit,pr_desc,SPONTANEOUS (no dev signal),camunda/camunda,44212,Copilot,Removes temporary restrictions blocking conditional events from modification operations.
+notice,dialogue,dev raised concern/question,dotnet/roslyn,81178,Copilot,"I added a check to skip the anchor operation when an is on a separate line from its keyword (889d7e77), but the test still fails."
+revisit,dialogue,dev named debt,dotnet/AspNetCore.Docs,35945,Copilot,"Removed the duplicate ""Handle errors"" entry from the Controller-based APIs section in the TOC, keeping only the main one under APIs"
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/AspNetCore.Docs,36152,Copilot,This PR adds a new rule to the GitHub Copilot instructions to ensure consistent placeholder formatting throughout the ASP.NET Core documentation.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/AspNetCore.Docs,36253,Copilot,✅ Eliminated duplicate content and improved documentation structure
+notice,dialogue,dev raised concern/question,taiga-family/taiga-ui,11419,Copilot,The onEscape method should be protected instead of public since it's only used internally by the component's host binding and doesn't need to be part of the public API.
+notice,dialogue,dev raised concern/question,dotnet/aspnetcore,62126,Copilot,I've temporarily uncommented the tests related to https://github.com/microsoft/OpenAPI.NET/issues/2062 with the current 2.0.0-preview.21 version to see if the issue is already resolved.
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/aspnetcore,62436,Copilot,This change quarantines the test by adding the attribute to temporarily disable it until the underlying Docker infrastructure issue can be resolved.
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/aspnetcore,62511,Copilot,"This PR adds a helper method that recognizes by its signature, not just by , and uses it in the skip logic:"
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/aspnetcore,62785,Copilot,This PR marks the class as obsolete using the attribute with a placeholder message as requested in issue #20964.
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/aspnetcore,63074,Copilot,This approach follows the established pattern in the repository for handling flaky or temporarily failing tests while preserving test visibility and allowing proper investigation and resolution.
+revisit,dialogue,dev named debt,dotnet/aspnetcore,63099,Copilot,Moved the DynamicDependency from the private constructor to the public method and replaced hardcoded strings with for better type safety and maintainability.
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/aspnetcore,63492,Copilot,This change restores the quarantine to prevent the flaky test from causing build failures until the underlying issue can be properly resolved.
+notice,dialogue,dev named debt,dotnet/maui,30020,Copilot,I've identified and will fix the failing test.
+notice,dialogue,dev raised concern/question,dotnet/maui,30196,Copilot,The scope needs to stay alive until we explicitly dispose it when the window is destroyed.
+revisit,dialogue,dev named debt,dotnet/maui,30291,Copilot,Changed SetParent to use the Parent property instead of GetRealParent(false) to eliminate logic duplication and ensure consistent behavior.
+revisit,dialogue,dev named debt,dotnet/maui,30291,Copilot,"Updated both and to use this consolidated method, eliminating the duplication."
+revisit,dialogue,dev alluded to error,dotnet/maui,30293,Copilot,"I've consolidated the safe area logic by creating , which eliminates code duplication between and ."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,30304,Copilot,**Removed duplicate content** by consolidating the old section that appeared later in the document
+revisit,dialogue,dev named debt,dotnet/maui,30304,Copilot,Removed the duplicate step 10 as requested.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,30424,Copilot,- **Eliminates code duplication**: No need to recreate this logic in every MAUI project
+revisit,dialogue,changes_requested,dotnet/maui,30526,Copilot,"I removed the duplicate entries without the *REMOVED* prefix, keeping only the correctly prefixed ones."
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,30337,Copilot,The safe area calculations in some scenarios are off until we can merge this PR https://github.com/dotnet/maui/pull/30629.
+revisit,dialogue,dev named debt,dotnet/maui,30337,Copilot,Removed duplicate SafeAreaGroupArrayTypeConverter entries from the net/PublicAPI.Unshipped.txt file.
+revisit,dialogue,dev named debt,dotnet/maui,30337,Copilot,Removed the duplicate fallback logic by consolidating into a single code path that handles all cases.
+revisit,dialogue,dev named debt,dotnet/maui,30337,Copilot,Deleted the duplicate SafeAreaEdgesTypeConverter.cs file in Controls/src/Core since it was already moved to the Core project.
+revisit,dialogue,dev named debt,dotnet/maui,30337,Copilot,"If projects fail to restore and build, I'll report those errors instead of trying to work around them with flags like --no-restore."
+revisit,dialogue,dev raised concern/question,dotnet/maui,30692,Copilot,Removed the duplicate test as requested.
+revisit,dialogue,dev alluded to error,dotnet/maui,31133,Copilot,Fixed the duplicate symbol error by removing the duplicate entries from both PublicAPI.Unshipped.txt files.
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,31868,Copilot,This PR temporarily disables two WebView UI tests that have been exhibiting flakiness in CI environments by applying the attribute:
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,31918,Copilot,This workaround is no longer necessary after this fix.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,31918,Copilot,This workaround is no longer necessary after this fix.
+revisit,dialogue,dev named debt,dotnet/roslyn,80655,Copilot,Moved and creation out of the if-else blocks to eliminate duplication since they're identical for both property and field cases.
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/roslyn,80701,Copilot,"This PR enables renaming of anonymous type members, which was previously blocked with a ""not supported"" error dialog."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/roslyn,80732,Copilot,- Removed duplicated helper methods
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/roslyn,80800,Copilot,I have found no workarounds.</issue_description>
+revisit,dialogue,dev raised concern/question,umbraco/Umbraco-CMS,19946,Copilot,Updated the instructions to dynamically reference version configuration files instead of hardcoding versions.
+notice,pr_desc,SPONTANEOUS (no dev signal),faros-ai/airbyte-connectors,2029,devin-ai-integration[bot],"This PR implements the feature to automatically skip creating teams below a configurable minimum size (default = 6), reassigning their users to the nearest valid parent team."
+notice,pr_desc,SPONTANEOUS (no dev signal),faros-ai/airbyte-connectors,2263,devin-ai-integration[bot],"This PR makes the Cursor connector's page size configurable by adding a parameter to the source configuration, replacing the hardcoded constant."
+revisit,pr_desc,SPONTANEOUS (no dev signal),faros-ai/airbyte-connectors,2263,devin-ai-integration[bot],"This PR makes the Cursor connector's page size configurable by adding a parameter to the source configuration, replacing the hardcoded constant."
+notice,dialogue,dev raised concern/question,faros-ai/airbyte-connectors,2331,devin-ai-integration[bot],"If you need the source snapshot updated, please let me know if there's a workaround for the pre-existing faros-airbyte-common build issue, or I can update it manually if you can confirm the expected o"
+revisit,dialogue,neutral dev comment before,ant-design/ant-design,54693,Copilot,Removed the duplicate tokens from NotificationToken interface since they are already available through ComponentToken inheritance via FullToken.
+revisit,dialogue,neutral dev comment before,ant-design/ant-design,54693,Copilot,✅ Removed duplicate tokens from NotificationToken interface - they're now only in ComponentToken
+revisit,pr_desc,SPONTANEOUS (no dev signal),trezor/trezor-suite,21084,Copilot,"**Eliminated code duplication** - Created shared component that both alert variants use internally, following the DRY principle"
+revisit,dialogue,changes_requested,trezor/trezor-suite,21084,Copilot,I've created a shared component that eliminates the duplication between and .
+revisit,pr_desc,SPONTANEOUS (no dev signal),unoplatform/uno,21227,Copilot,**Fixed JSExport**: Added attribute to the main method and removed workaround namespace
+revisit,dialogue,dev alluded to error,unoplatform/uno,21250,Copilot,Updated the instructions to emphasize using the latest stable .NET version instead of hardcoding .NET 9.0.
+notice,dialogue,dev alluded to error,unoplatform/uno,21391,Copilot,"As a workaround, we move focus to another control to clear the selection."""
+notice,pr_desc,SPONTANEOUS (no dev signal),duneanalytics/spellbook,8626,devin-ai-integration[bot],"After merging this PR, the following dbt command needs to be run to trigger the post-hooks on all view models:"
+revisit,dialogue,dev raised concern/question,windmill-labs/windmill,6252,claude[bot],I've successfully analyzed and refactored the SDK methods to eliminate code duplication as requested.
+revisit,pr_desc,SPONTANEOUS (no dev signal),windmill-labs/windmill,6378,claude[bot],"Replaces the generic ""Ask anything"" placeholder in the AI chat input with mode-specific suggestions that better guide users based on the current AI mode context."
+notice,dialogue,dev named debt,windmill-labs/windmill,6378,claude[bot],This is a well-implemented enhancement that adds mode-specific placeholders to improve user guidance.
+revisit,dialogue,dev named debt,windmill-labs/windmill,6378,claude[bot],**Updated switch statement**: Replaced hardcoded strings with enum values:
+revisit,pr_desc,SPONTANEOUS (no dev signal),wolfSSL/wolfssl,8452,devin-ai-integration[bot],This PR modifies PemToDer to extract and use the hash algorithm from PBES2 parameters in the DER buffer instead of using hardcoded MD5.
+revisit,pr_desc,SPONTANEOUS (no dev signal),wolfSSL/wolfssl,8454,devin-ai-integration[bot],This PR modifies the PemToDer function to extract the hash algorithm from PBES2 parameters in the DER buffer instead of using a hardcoded WC_MD5.
+revisit,dialogue,dev named debt,web-infra-dev/rspack,11142,Copilot,I've removed the duplicate nightly optimization flags from the build.js file since they're already present in the restored .cargo/config.toml.
+revisit,pr_desc,SPONTANEOUS (no dev signal),ydb-platform/ydb,23736,Copilot,**Eliminated code duplication**:
+revisit,dialogue,neutral dev comment before,ydb-platform/ydb,24270,Copilot,**Eliminated duplication** of function between the two scripts
+notice,pr_desc,SPONTANEOUS (no dev signal),ArcadeData/arcadedb,2818,Copilot,"The function hardcoded when querying vertices by ID, which fails for vertex types using a different identifier property."
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-cpp,6931,Copilot,Removed the obsolete environment variable workaround from the CI pipeline configuration in .
+notice,dialogue,dev named debt,Azure/azure-sdk-for-java,47146,Copilot,This relies on correct offset calculation in the retry logic (which we have) rather than trying to detect/skip duplicates at the policy level.
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-java,47146,Copilot,"Removed the duplicate byte skipping logic that was causing the ""Unexpected segment number"" errors."
+revisit,pr_desc,SPONTANEOUS (no dev signal),RT-Thread/rt-thread,10919,Copilot,Replaced hardcoded initialization with for cleaner code
+revisit,pr_desc,SPONTANEOUS (no dev signal),RT-Thread/rt-thread,11101,Copilot,- Updated to provide stub implementations instead of
+notice,dialogue,dev raised concern/question,RT-Thread/rt-thread,11115,Copilot,- **Option C**: Close the PR and we revisit with a different scope
+notice,dialogue,dev raised concern/question,RustPython/RustPython,6499,Copilot,I temporarily re-enabled the test locally and ran 100 times on Linux; it passed 100/100 and I couldn’t reproduce a flake here.
+revisit,dialogue,dev raised concern/question,dotnet/sdk,49459,Copilot,Replaced all hardcoded hash buffer size values with property for better documentation.
+revisit,dialogue,dev named debt,dotnet/sdk,49459,Copilot,Refactored both test files to eliminate duplication by extracting helper methods ( and ) that contain the common task configuration.
+notice,dialogue,dev alluded to error,dotnet/sdk,50023,Copilot,I fixed the method to properly format advisory URLs and temporarily disabled ANSI URL sequences in the method to ensure reliable output in test environments.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/sdk,50149,Copilot,This PR removes the explicit header from the task to prevent duplication.
+notice,dialogue,neutral dev comment before,dotnet/sdk,50149,Copilot,I found several test files that still contain expectations for the header that need to be updated to match the implementation changes.
+notice,pr_desc,SPONTANEOUS (no dev signal),StarRocks/starrocks,67516,Copilot,"This PR refactors the type checker system to use mandatory XML-based configuration with the industry-standard libxml2 parser, eliminating all hardcoded type checkers and simplifying the configuration "
+revisit,pr_desc,SPONTANEOUS (no dev signal),StarRocks/starrocks,67516,Copilot,"This PR refactors the type checker system to use mandatory XML-based configuration with the industry-standard libxml2 parser, eliminating all hardcoded type checkers and simplifying the configuration "
+revisit,dialogue,dev named debt,StarRocks/starrocks,67516,Copilot,Removed and all hardcoded type checkers in commit c48acd5d.
+notice,dialogue,neutral dev comment before,dotnet/runtime,115760,Copilot,I've restored the TODO comments that were inadvertently removed.
+revisit,dialogue,neutral dev comment before,dotnet/runtime,115760,Copilot,I've restored the TODO comments that were inadvertently removed.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,115761,Copilot,This PR unifies the certificate chain building logic between and by replacing the duplicate implementation in with the shared implementation from .
+revisit,dialogue,dev raised concern/question,dotnet/runtime,115823,Copilot,I've removed the duplicate assertion and revised the test to be more explicit about what we're testing.
+notice,dialogue,dev named debt,dotnet/runtime,115927,Copilot,This is indeed a documented switch that would need to be tracked as a breaking change.
+revisit,dialogue,dev raised concern/question,dotnet/sdk,51009,Copilot,**Replaced duplicate methods** with parameterized versions:
+revisit,dialogue,dev raised concern/question,dotnet/sdk,51052,Copilot,"Updated both test and run command parsers to use these localized strings instead of hardcoded ""test"" and ""run""."
+notice,dialogue,dev raised concern/question,dotnet/sdk,51052,Copilot,"As you noted, macOS and Windows snapshots will need to be added separately after this commit."
+notice,dialogue,dev named debt,dotnet/sdk,51216,Copilot,I need more details about the specific issues you're referring to.
+revisit,pr_desc,SPONTANEOUS (no dev signal),github/codeql-action,3076,Copilot,This change reduces the dependency footprint by removing packages that provide duplicate type information.
+revisit,dialogue,dev alluded to error,dotnet/runtime,116940,Copilot,Removed the duplicate test case as suggested.
+revisit,dialogue,dev alluded to error,dotnet/runtime,117697,Copilot,Removed in commit reset to avoid duplication.
+revisit,dialogue,dev alluded to error,WeblateOrg/weblate,16884,Copilot,Remove the workaround entirely if translate-toolkit now handles this correctly?
+notice,dialogue,dev alluded to error,dotnet/runtime,118674,Copilot,"If this change is not needed for the current PR's functionality, it should be removed or explained in the PR description."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,119494,Copilot,- - Removed workaround property
+notice,dialogue,dev named debt,actualbudget/actual,6669,Copilot,I've simplified it by hardcoding in the component.
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,69112,devin-ai-integration[bot],- This logic attempts to skip low surrogates after processing high surrogates
+revisit,dialogue,dev named debt,dotnet/runtime,120096,Copilot,"Removed the duplicate ""Quick setup"" configuration and kept only the cross-link to the debugging reference."
+revisit,dialogue,dev named debt,dotnet/runtime,120096,Copilot,"Removed the duplicated stack trace and JavaScript debugger break instructions, replaced with a link to the native-wasm-debugging.md documentation where this content is properly detailed."
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,69174,devin-ai-integration[bot],"Updates the Airbyte Academy documentation page to replace two ""Coming soon"" placeholder cards with actual course information for:"
+notice,dialogue,dev alluded to error,dotnet/runtime,120099,Copilot,"The problem was that my test hardcoded the culture parameter as an empty string , but CI environments use ""en-US""."
+revisit,dialogue,dev alluded to error,dotnet/runtime,120099,Copilot,I've extracted the common code into helper methods to eliminate duplication:
+notice,dialogue,dev alluded to error,airbytehq/airbyte,69209,devin-ai-integration[bot],"I'll also open a follow-up issue to update the error message in the code from ""1 GB"" to ""1.5 GB"" for consistency."
+revisit,dialogue,dev alluded to error,airbytehq/airbyte,69209,devin-ai-integration[bot],Remove the suggestion that Replicate Records is a workaround for large unstructured files
+revisit,dialogue,neutral dev comment before,dotnet/runtime,120328,Copilot,Removed the obsolete constructor test calls to avoid duplication with commit 6c8b0e8.
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,120639,Copilot,We purposefully do not handle creating these unless you use as creating these sort of paths frequently breaks apps.
+notice,dialogue,dev raised concern/question,dotnet/runtime,120639,Copilot,"If you can point me to the specific issues, I'll add appropriate attributes to disable those tests until the underlying problems are fixed."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,120845,Copilot,"- **Removed duplicates**: Analyzed overlap with existing PCRE, Rust, and core regex tests; removed 57 duplicative test cases to avoid redundancy"
+revisit,dialogue,dev raised concern/question,dotnet/runtime,120845,Copilot,Removed 57 duplicative test cases already covered by existing tests.
+revisit,dialogue,dev raised concern/question,dotnet/runtime,120846,Copilot,I analyzed all test cases and removed 25 duplicates/trivial tests that were already covered by existing tests in Regex.Match.Tests.cs and other test files.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,120929,Copilot,Removed redundant property wrappers and merged duplicate test methods.
+notice,dialogue,SPONTANEOUS (no dev signal),internetarchive/openlibrary,11146,Copilot,The URL pattern uses '@@@' as placeholder while other identifiers in the codebase use '{ID}' format as mentioned in the PR description.
+notice,dialogue,SPONTANEOUS (no dev signal),internetarchive/openlibrary,11146,Copilot,The URL pattern uses '@@@' as placeholder while the PR description mentions '{ID}' format.
+revisit,pr_desc,SPONTANEOUS (no dev signal),internetarchive/openlibrary,11151,Copilot,**Updated subjects.html template** to use instead of hardcoded
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,69729,devin-ai-integration[bot],"This PR expands the Snowflake destination V4 migration guide by filling in 6 placeholder comments with detailed, actionable instructions for users migrating from version 3 to version 4."
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,69832,devin-ai-integration[bot],This PR fixes missing and duplicate records in Stripe incremental syncs by removing the 30-day limitation from the .
+notice,dialogue,SPONTANEOUS (no dev signal),airbytehq/airbyte,69832,devin-ai-integration[bot],"Since this is a Draft PR created for triage purposes, I'm leaving the test updates for the engineering team to decide on."
+revisit,dialogue,dev raised concern/question,microsoft/vscode,288295,Copilot,"I've moved to the base class as a protected method, eliminating the duplication."
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70200,devin-ai-integration[bot],**Data completeness**: Verify this change doesn't cause pagination to stop early or skip records
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70366,devin-ai-integration[bot],"- Removed duplicate ""Unsubscribe Groups"" entry (same as ""Suppression groups"")"
+notice,dialogue,dev named debt,microsoft/PowerToys,40740,Copilot,I replaced it with a hardcoded string for now with a TODO comment to implement proper localization once the infrastructure is available.
+revisit,dialogue,dev named debt,microsoft/PowerToys,40740,Copilot,I replaced it with a hardcoded string for now with a TODO comment to implement proper localization once the infrastructure is available.
+notice,dialogue,dev named debt,microsoft/typespec,7602,Copilot,"The discriminated union test case is already being skipped for JS via the .testignore file (line 11: ), so this is correctly handled."
+notice,dialogue,dev alluded to error,microsoft/typespec,7729,Copilot,I've renamed the method to and flipped the logic so it returns when parameters need to be made required.
+revisit,dialogue,dev alluded to error,microsoft/typespec,7760,Copilot,I've removed the duplicate class from and now import it from instead.
+revisit,dialogue,dev alluded to error,microsoft/typespec,7760,Copilot,"Updated build_pygen_wheel.py to use the same package manager abstraction as install.py, replacing the hardcoded pip import with package manager detection that supports both uv and pip."
+notice,dialogue,dev named debt,microsoft/typespec,7793,Copilot,I have successfully removed all NoWarn suppressions from the three generator projects and identified the scope of XML documentation issues that need to be addressed:
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/typespec,7908,Copilot,- Removes duplicates using
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,290527,Copilot,- **Extracted common logic**: Created helper method to eliminate duplication between and
+revisit,dialogue,neutral dev comment before,Azure/azure-sdk-tools,13031,Copilot,"Removed all unused TODO code including commented-out batch method implementations in GitHubToAADConverter and AzureDevOpsService, and TODO comments in NotificationConfigurator."
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70871,devin-ai-integration[bot],Replaced placeholder content with a complete command that installs both required packages
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70874,devin-ai-integration[bot],Replaced placeholder content with a proper file example showing both required environment variables
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70876,devin-ai-integration[bot],"Removed the placeholder ""Verify connector credentials"" section (lines 179-181) - this was just a heading with a comment, no actual content"
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70878,devin-ai-integration[bot],Replaced placeholder HTML comments with actual working code examples
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70879,devin-ai-integration[bot],"Removed the placeholder ""Identify open issues..."" heading (its purpose is now fulfilled by the sample prompts)"
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70904,devin-ai-integration[bot],- Cleans up the temporary checkout before PR creation to avoid submodule issues
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,70930,devin-ai-integration[bot],"**Fixed assertion**: The ConfigComponentsResolver correctly resolves stream names and request_parameters, but the transformation value mapping for the pivot field returns the template placeholder (""DY"
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,71115,devin-ai-integration[bot],This is a follow-up documentation PR stacked on top of #70349.
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,71140,devin-ai-integration[bot],"This is a follow-up to airbytehq/airbyte#70349, which removed deprecated and attribution windows."
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,71161,devin-ai-integration[bot],This is a follow-up to #71156 which reverted the global setting that was breaking React component rendering on other docs pages.
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,71170,devin-ai-integration[bot],This is particularly important for CDC users who cannot split connections as a workaround.
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,71190,devin-ai-integration[bot],This is a follow-up to [#71169](https://github.com/airbytehq/airbyte/pull/71169) which added the configuration field.
+notice,pr_desc,SPONTANEOUS (no dev signal),neondatabase/website,3163,devin-ai-integration[bot],This PR is a follow-up to #3162 to make the llms.txt files accessible via the website.
+revisit,pr_desc,SPONTANEOUS (no dev signal),neondatabase/website,3310,devin-ai-integration[bot],"This PR removes the duplicated ""Set Operators"" section from the PostgreSQL sidebar.yaml file."
+revisit,pr_desc,SPONTANEOUS (no dev signal),neondatabase/website,3348,devin-ai-integration[bot],"Removes the duplicate ""Running pg_cron jobs in multiple databases"" section"
+notice,pr_desc,SPONTANEOUS (no dev signal),neondatabase/website,3601,devin-ai-integration[bot],"This PR removes all documentation content stating that Neon does not support PostgreSQL event triggers, based on the new capability that Neon now supports event triggers."
+revisit,pr_desc,SPONTANEOUS (no dev signal),neondatabase/website,3667,devin-ai-integration[bot],"This PR creates a single, centralized reference page documenting all shared metrics and log fields exported by Neon, then updates the Datadog and OpenTelemetry integration guides to remove duplicated "
+revisit,dialogue,SPONTANEOUS (no dev signal),airbytehq/airbyte,71765,devin-ai-integration[bot],Fixed the changelog entry for version 1.0.5 - replaced the placeholder with the correct PR number
+notice,dialogue,neutral dev comment before,nocodb/nocodb,11226,codegen-sh[bot],I've updated the PR to keep hardcoded to while fixing the date-day mapping issue.
+notice,dialogue,dev raised concern/question,nocodb/nocodb,11226,codegen-sh[bot],I've fixed the calendar date-day mapping issue in [MonthView.vue](https://github.com/nocodb/nocodb/pull/11228/files#diff-03444a66f984691808f9005daa13316a0018dd8567bde8d2aca6297b3ef05396) while keeping
+notice,dialogue,neutral dev comment before,nocodb/nocodb,11607,codegen-sh[bot],Check if there are any recent changes to the build configuration in the develop branch that might need to be merged into this PR
+notice,pr_desc,SPONTANEOUS (no dev signal),netdata/netdata,20871,Copilot,This PR addresses the TODO comments in that were preventing proper comparison of the field in SNMP table metrics.
+revisit,pr_desc,SPONTANEOUS (no dev signal),netdata/netdata,20871,Copilot,**Removed workaround code**: Eliminated the TODO comments and the code that artificially cleared fields in both the main collector tests and caching tests.
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,72359,devin-ai-integration[bot],**Removed extra blank line**: Removed duplicate blank line before the Changelog section.
+notice,pr_desc,SPONTANEOUS (no dev signal),camunda/camunda,40624,Copilot,I would like to have feedbacks for anyone that requests features (in this case there is no problem as Aleksander requested and he is the one prioritizing :) ) - This is here for a few months now witho
+notice,pr_desc,SPONTANEOUS (no dev signal),camunda/camunda,41870,Copilot,I don't think -Pinclude-optimize need to be included
+notice,pr_desc,SPONTANEOUS (no dev signal),camunda/camunda,41886,Copilot,"This PR introduce API tests to cover the endpoint based on this [epic](https://github.com/camunda/product-hub/issues/2717) , the tests already caught a few issues that are reported under the [QA ticke"
+revisit,dialogue,dev alluded to error,camunda/camunda,42107,Copilot,Updated all behavior classes to use instead of duplicate helper methods.
+notice,pr_desc,SPONTANEOUS (no dev signal),camunda/camunda,42170,Copilot,"For now we will trigger this manually, going forward we anticipate this to happen automatically based on e.g."
+notice,dialogue,dev named debt,camunda/camunda,42170,Copilot,[nitpick] The subteam ID is hardcoded in the failure notification.
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,52708,devin-ai-integration[bot],This is a temporary PR to verify CI status for source-faker before proceeding with CDK updates.
+revisit,pr_desc,SPONTANEOUS (no dev signal),department-of-veterans-affairs/vets-api,24632,Copilot,- Removed duplicate branch body in method
+revisit,dialogue,dev alluded to error,department-of-veterans-affairs/vets-api,24632,Copilot,"Fixed both linting errors: removed duplicate branch body in by simplifying the logic (returns data if present, otherwise empty string), and removed redundant else clause in (now returns nil implicitly"
+notice,pr_desc,SPONTANEOUS (no dev signal),camunda/camunda,42675,Copilot,The dynamic node ID provider hardcoded timeout values that need to be configurable for operational flexibility.
+notice,dialogue,SPONTANEOUS (no dev signal),camunda/camunda,42675,Copilot,"Consider storing this value as a field if it needs to be accessed later, or remove the explicit null check if it's only needed for the backoff initialization (since ExponentialBackoff constructor will"
+notice,dialogue,dev raised concern/question,Azure/azure-sdk-for-java,47290,Copilot,"The needs to be added to the child stream channels **before** , but currently it's only being added to the parent channel (and only if exists, which it doesn't in HTTP/2)."
+notice,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-net,51869,Copilot,This method is not supported for generics in the current TypeProvider implementation.
+notice,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,51869,Copilot,I've reverted to the manual approach for now to maintain functionality while waiting for guidance.
+notice,dialogue,dev named debt,Azure/azure-sdk-for-net,51869,Copilot,This method is not supported for generics.
+notice,dialogue,dev named debt,Azure/azure-sdk-for-net,51869,Copilot,I've confirmed that there are indeed other constructor patterns that need to be reviewed:
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-js,37128,Copilot,"- : Removed 4 duplicate exports ( , , , duplicate line)"
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-js,37128,Copilot,"Removed the same 4 duplicate exports: , , , and duplicate line."
+notice,dialogue,neutral dev comment before,Azure/azure-sdk-for-python,42866,Copilot,"The import statement for should be removed from this import list as well, since the function is no longer used anywhere in the codebase after the multiapi removal."
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-net,53747,Copilot,Removed the duplicate method from in commit cdcf6f4.
+notice,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-net,54107,Copilot,"Now our SDK has implemented model reader writer, and every model has serialization and deserialization in the same time, therefore if one model has a property whose type is , when they call , they wil"
+notice,dialogue,neutral dev comment before,Azure/azure-sdk-for-python,44340,Copilot,"I'd be happy to help, but I need more information about what needs to be fixed."
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-net,54528,Copilot,- Removed ~270 lines of duplicate resource detection logic
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-net,54528,Copilot,Removed ~270 lines of duplicate code.
+notice,dialogue,dev named debt,Azure/azure-sdk-for-net,54564,Copilot,The TODO comment has been deleted since we now support both scope resources and operations with the changes in this PR.
+revisit,dialogue,dev named debt,Azure/azure-sdk-for-net,54564,Copilot,The TODO comment has been deleted since we now support both scope resources and operations with the changes in this PR.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-rust,2832,Copilot,I've refactored the workflow to use the existing devcontainer instead of duplicating the setup.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-rust,2832,Copilot,"Removed the duplicate version printing from the early ""Verify Rust installation"" step."
+notice,dialogue,dev named debt,Azure/azure-sdk-for-net,54643,Copilot,Added TODO comment at lines 271-272 noting this is temporary pending API update.
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-rust,3336,Copilot,"Extracted common test execution logic into function, eliminating code duplication between doc tests and all-targets tests."
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-net,54792,Copilot,Removed redundant sorting from to avoid duplicate sorting since all resources are sorted in the final pass after methods have been merged from incomplete resources and list operations have been proces
+notice,dialogue,neutral dev comment before,Azure/azure-sdk-for-net,54814,Copilot,"For now, I've removed the list operation from BestPracticeVersions to keep the test valid."
+notice,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,54859,Copilot,"Fixing the deeply nested parameter passing requires a more comprehensive refactoring of the recursive parameter building logic, which I recommend addressing as a separate follow-up task to avoid riski"
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-rust,3531,Copilot,- **Removed**: QueryResults types that were dead code (replaced by FeedBody)
+notice,dialogue,neutral dev comment before,Azure/azure-sdk-tools,12747,Copilot,"Consider adding a comment explaining that this is required due to SDK constructor requirements, and potentially adding validation to fail fast if the SDK starts rejecting this placeholder value."
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-net,55010,Copilot,Removes manual serialization renaming workaround in now that TypeSpec issue #8079 (automatic serialization/deserialization method renaming when is called) is resolved.
+notice,dialogue,dev alluded to error,Azure/azure-sdk-for-net,55015,Copilot,"Could you clarify: Is this a bug in the base package that we need to work around in our Azure.Generator extension, or is there a configuration/option we should be passing that we're missing?"
+notice,dialogue,dev alluded to error,Azure/azure-sdk-for-net,55015,Copilot,I'm investigating whether there's an initialization order issue or if additional places in the code need to be updated.
+revisit,pr_desc,SPONTANEOUS (no dev signal),AzureAD/microsoft-authentication-library-for-js,8130,Copilot,- **Removed duplicate event**: Removed from msal-browser's BrowserPerformanceEvents since it's now defined in msal-common
+notice,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-net,55099,Copilot,We should refactor that part of code doing this:
+revisit,dialogue,dev raised concern/question,Azure/azure-sdk-for-net,55113,Copilot,"Refactored to use continue when parent is found, eliminating code duplication."
+revisit,pr_desc,SPONTANEOUS (no dev signal),Azure/azure-sdk-for-net,55179,Copilot,- **Removed duplicates**:
+revisit,dialogue,dev alluded to error,Azure/azure-sdk-for-net,55179,Copilot,This is dead code and will likely be flagged by linting; either remove it or use it to avoid the later nested scan over when assigning (you already have the key↔resource association here).
+revisit,dialogue,dev alluded to error,Azure/azure-sdk-for-net,55179,Copilot,Eliminated dead code by using map
+revisit,dialogue,dev alluded to error,Azure/azure-sdk-for-net,55179,Copilot,"The PR can be merged as-is - when it merges to main, it will properly replace the duplicate code with our refactored version."
+notice,dialogue,dev alluded to error,department-of-veterans-affairs/vets-api,25239,Copilot,Option 1: Skip if we're about to filter the record out anyway
+revisit,pr_desc,SPONTANEOUS (no dev signal),department-of-veterans-affairs/vets-api,25260,Copilot,- **Removed dead code** - Eliminated unused parameter and redundant conditional branches
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/AspNetCore.Docs,36198,Copilot,We will fix it.
+revisit,dialogue,dev named debt,department-of-veterans-affairs/vets-api,25306,Copilot,"**Removed check entirely** - If MMR prevents duplicate requests, there's no scenario where we'd have a pending refill task AND a new dispense being created simultaneously."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/AspNetCore.Docs,36443,Copilot,This approach eliminates duplicate H2 headers and build warnings while ensuring:
+revisit,dialogue,dev raised concern/question,department-of-veterans-affairs/vets-api,25461,Copilot,"Changed the test to stub the feature object methods instead of using , which avoids modifying global state:"
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/aspnetcore,63825,Copilot,"Before this change, configuring SignalR connection options required this workaround:"
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/aspnetcore,64549,Copilot,Cleanup: Remove duplicate and use existing
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/aspnetcore,64550,Copilot,Removes duplicate methods and updates tests to use the existing extension method from .
+notice,dialogue,dev alluded to error,dotnet/aspnetcore,64742,Copilot,"Alternatively, if you can share a snippet of the build output showing the CS0246 or CS0012 errors (type not found errors), I can identify exactly which assemblies need to be referenced."
+revisit,dialogue,dev named debt,camunda/camunda,43743,Copilot,Removed duplicate JavaDoc comment.
+revisit,dialogue,neutral dev comment before,dotnet/aspnetcore,64988,Copilot,Updated both template.json files to use as the replacement placeholder and updated all launchSettings.json files accordingly.
+revisit,dialogue,dev alluded to error,camunda/camunda,43786,Copilot,Eliminated duplication by building common command and conditionally adding errorMessage in 7141b90
+revisit,pr_desc,SPONTANEOUS (no dev signal),camunda/camunda,43794,Copilot,Eliminates duplicate actor type definitions by making batch operations directly reuse the audit log's enums throughout the codebase.
+revisit,dialogue,dev alluded to error,dotnet/maui,29780,Copilot,Removed the duplicated code in MauiCustomTarget and made the helper methods in PlatformInterop package-private (static) so they can be reused.
+notice,dialogue,dev alluded to error,dotnet/maui,30296,Copilot,"The failing tests may need to be updated to use alternative approaches, or we can discuss if a limited test-specific implementation is needed."
+notice,dialogue,dev alluded to error,dotnet/maui,31015,Copilot,"I'll need to close this PR and create a new one targeting net10.0, or the base branch needs to be changed to net10.0."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,31125,Copilot,"- - Removed duplicate methods, updated references"
+notice,dialogue,dev raised concern/question,dotnet/maui,31728,Copilot,"Since the class itself is internal, the method should be internal too - it's only used within the gesture handling system and doesn't need to be part of the public API."
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,32335,Copilot,This issue will be closed automatically in 7 days if we do not hear back from you by then - please feel free to re-open it if you come back to this issue after that time.</body></comment_new>
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/roslyn,80861,Copilot,"Our team will get back to you if either more information is needed, a workaround is available, or the issue is resolved.</p>"
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/roslyn,80880,Copilot,- Removed duplicate modifier check that reported ERR_TypeExpected
+revisit,dialogue,dev named debt,dotnet/maui,32420,Copilot,Removed all hardcoded characters and switched to using in commit 3ee2ec47.
+revisit,dialogue,dev named debt,dotnet/maui,32444,Copilot,Moved x:DataType to the ContentPage root to eliminate duplication.
+revisit,dialogue,dev raised concern/question,dotnet/maui,32597,Copilot,"Refactored to call , eliminating code duplication."
+revisit,dialogue,dev raised concern/question,dotnet/roslyn,81086,Copilot,Removed the duplicate method and added an optional parameter to .
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,32736,Copilot,"Workaround for Xharness issue: https://github.com/dotnet/xharness/issues/1500 -- once this issue is fixed, this change can be reverted."
+notice,dialogue,dev alluded to error,dotnet/roslyn,81282,Copilot,"Since ERR_IteratorMustBeAsync already tells the user to add 'async', we now skip reporting the await error to avoid redundancy."
+notice,dialogue,dev raised concern/question,dotnet/roslyn,81285,Copilot,I'll add comprehensive tests for all expression types and legal token cases in a follow-up commit.
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,55005,devin-ai-integration[bot],We will need it for a few connectors.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,33151,Copilot,- **Eliminated duplication**: Removed ~95 lines of UI test structure that duplicated
+notice,dialogue,dev named debt,dotnet/maui,33151,Copilot,The agent emphasizes throughout that it does NOT implement fixes - its only job is to create a test that proves the bug exists.
+notice,dialogue,dev alluded to error,dotnet/maui,33223,Copilot,You're right - I skipped both mandatory checkpoints.
+notice,dialogue,dev named debt,airbytehq/airbyte,55134,devin-ai-integration[bot],"Regarding your question about the VersionIncrementCheck step, I can confirm that the step we inherit from does indeed skip the check if the connector has a metadata flag that makes it optional."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/maui,33579,Copilot,"- ""cleanup all the debug logging"" - remove temporary debug code"
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,120805,Copilot,A possible workaround is to just use standard techniques however this is not as performant given I have a locally persisted converter as documented [here in the documentation](https://learn.microsoft.
+notice,dialogue,dev alluded to error,dotnet/sdk,51158,Copilot,This section appears to document a command that is not implemented in this PR.
+revisit,pr_desc,SPONTANEOUS (no dev signal),open-metadata/OpenMetadata,25402,Copilot,- Extracted constant to replace 8 hardcoded string occurrences
+revisit,dialogue,dev named debt,dotnet/sdk,51455,Copilot,Removed all TODO comments from the analyzer code.
+revisit,dialogue,dev named debt,dotnet/sdk,51455,Copilot,Removed all TODO comments in commit d24289e.
+revisit,dialogue,dev named debt,dotnet/sdk,51455,Copilot,Removed all TODO comments in commit d24289e.
+revisit,dialogue,dev named debt,dotnet/runtime,121282,Copilot,Removed the static XML file with hardcoded versions and added an MSBuild target that dynamically generates the manifest during build using .
+notice,dialogue,dev named debt,dotnet/runtime,121282,Copilot,This is the same approach used by other native tools in the .NET ecosystem that need to be packaged as dotnet tools.
+notice,dialogue,dev named debt,dotnet/sdk,51609,Copilot,"I've kept it as a single test for now rather than adding a variant with , as the test already covers the key scenario and has limitations in verification (MSBuild restore recreates deleted packages)."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,121373,Copilot,"Replace hardcoded macOS queue names with centralized variable aliases from , enabling automatic version updates across PR and CI definitions."
+revisit,dialogue,changes_requested,dotnet/sdk,51727,Copilot,"Both and now call this method, eliminating the code duplication."
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,121772,Copilot,"For the UNIX NativeAOT this is implemented using real-time signals, so that the GC sends the RT signal to all threads that need to be suspended, and it does this until the threads report that they hav"
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/sdk,51978,Copilot,**Eliminates code duplication** - All loading logic is now in a single iterative function
+revisit,dialogue,changes_requested,dotnet/sdk,51978,Copilot,Refactored to use a recursive function that eliminates the code duplication.
+revisit,dialogue,dev raised concern/question,dotnet/runtime,121836,Copilot,Changed to in and removed the duplicate from .
+notice,dialogue,SPONTANEOUS (no dev signal),dotnetcore/BootstrapBlazor,7529,Copilot,This method should be removed to avoid confusion and maintain clean code.
+revisit,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,56400,devin-ai-integration[bot],Removed the LICENSE_SHORT file which previously contained a hardcoded year
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,122561,Copilot,"- **Moved stream type reading before switch**: All stream type reading (variable-length integer) now happens in one loop before processing, eliminating duplicate exception handling code"
+notice,dialogue,dev raised concern/question,dotnet/runtime,122637,Copilot,The loop will continue until we successfully capture all mount points in our buffer.
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,122652,Copilot,"No - this is a workaround for an existing issue, not a regression fix."
+revisit,dialogue,dev raised concern/question,dotnet/runtime,122729,Copilot,Moved to and removed duplicates from both test files in c3487f5.
+notice,dialogue,neutral dev comment before,dotnet/runtime,122780,Copilot,"Should I create gchelpersnative.cpp and move all the GC implementations from comutilnative.cpp in this PR, or would you prefer to handle this as a follow-up?"
+notice,dialogue,dev alluded to error,dotnet/runtime,122749,Copilot,"I've run the System.Memory tests locally and they all pass (52,123 passed, 1 skipped)."
+notice,dialogue,dev raised concern/question,dotnet/runtime,122829,Copilot,"Note: I intentionally skipped as it shares magic number 0x53464846 with (already in enum), and internal kernel filesystems like , that aren't user-accessible."
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,122951,Copilot,"In reality, the UrlEncoding used to ""fix"" the above issue breaks my workaround of quoting all the values."
+notice,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,123127,Copilot,"The parameter was always passed as , confirmed by an existing assert with a TODO comment: ""Stop passing isRecompute once we are sure that this assert is never hit."""
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,123156,Copilot,Removed RIDs were distro/version-specific variants that duplicate what the algorithmic RID model already handles.
+notice,dialogue,dev alluded to error,dotnet/runtime,123151,Copilot,This is a larger refactoring that could be done in a follow-up PR if desired.
+revisit,dialogue,dev alluded to error,dotnet/runtime,123151,Copilot,Removed the duplicate and structs from Base64Decoder.cs and Base64Encoder.cs - these are already defined in the helper files ( and ) and are imported via .
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,123228,Copilot,"- Deleted from enum (initially re-added, then removed as dead code)"
+notice,dialogue,dev raised concern/question,dotnet/runtime,123228,Copilot,"For now, I've kept but documented that MDA removal may be needed in a future change."
+revisit,dialogue,dev raised concern/question,dotnet/runtime,123228,Copilot,Removed ~364 lines of dead code.
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,123365,Copilot,"This approach centralizes validation at the public API boundary, eliminating the need for duplicate checks across 6 internal helper methods."
+revisit,pr_desc,SPONTANEOUS (no dev signal),dotnet/runtime,123525,Copilot,Removes dead code from CoreCLR utilcode that has no callers in the codebase.
+revisit,dialogue,dev alluded to error,dotnet/sdk,52640,Copilot,Changed to use instead of hardcoded .
+notice,dialogue,dev raised concern/question,home-assistant/core,149687,Copilot,"The PR description should be updated to follow the template format, but since I can only make changes through code commits and not directly edit the PR description, the description would need to be up"
+notice,dialogue,dev raised concern/question,internetarchive/openlibrary,11625,Copilot,The original skip logic would work fine if we check for date-specific sitemap files or use a date-specific directory.
+notice,dialogue,neutral dev comment before,lablup/backend.ai-webui,4987,Copilot,This change to the example description in the [create-jira-issue.md](http://create-jira-issue.md) file appears unrelated to the stated PR purpose of replacing hardcoded E2E test credentials with envir
+revisit,dialogue,neutral dev comment before,lablup/backend.ai-webui,4987,Copilot,This change to the example description in the [create-jira-issue.md](http://create-jira-issue.md) file appears unrelated to the stated PR purpose of replacing hardcoded E2E test credentials with envir
+notice,dialogue,dev alluded to error,open-metadata/OpenMetadata,22312,Copilot,My frontend fix (794de00) can serve as a temporary measure while the backend solution in PR #21770 is being refined for the production environment.
+revisit,dialogue,dev alluded to error,microsoft/vscode,250864,Copilot,Refactored to eliminate duplication by exporting from and importing it in all three notification components.
+revisit,dialogue,neutral dev comment before,microsoft/onnxruntime,24931,Copilot,Fixed the duplicate code by removing the inline switch statement and using the MapQNNLogLevelToOrtSeverity function instead.
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/PowerToys,44236,Copilot,Eliminates code duplication by extracting the method that was duplicated across and into a shared helper class.
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/testfx,6805,Copilot,Removed duplicate check in the service disposal condition
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/testfx,6815,Copilot,- **Removed ReflectionUtility.cs**: Eliminated 282 lines of duplicate code
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/testfx,6900,Copilot,- Removed duplicate vstest.console.exe locator code
+revisit,dialogue,dev raised concern/question,microsoft/typespec,8824,Copilot,Removed the duplicate logic.
+notice,pr_desc,SPONTANEOUS (no dev signal),microsoft/testfx,7108,Copilot,This PR adds a new informational analyzer with automatic code fix and runtime warning to help users identify and migrate away from this pattern before support is dropped in a future major version.
+revisit,dialogue,changes_requested,microsoft/vscode,252343,Copilot,Refactored to eliminate code duplication.
+notice,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,271566,Copilot,"This PR modifies the todo tool to reject calls with fewer than 3 entries, returning a natural language error message that guides the agent to either skip creating todos or add more detailed steps."
+notice,pr_desc,SPONTANEOUS (no dev signal),neondatabase/website,3531,devin-ai-integration[bot],This PR includes a reference file with all the content that needs to be added back to:
+notice,dialogue,dev alluded to error,microsoft/vscode,257299,Copilot,"The problem was that when watch programs clear the terminal, we also need to clear placeholder decorations (decorations shown during command execution)."
+notice,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,257904,Copilot,"The fix ensures Ctrl+K I works consistently for ""Modified elsewhere"" indicators in all scenarios - whether the hover is already visible or needs to be shown."
+notice,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,258896,Copilot,- - Added command ID enum and skip shell entry
+notice,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,259254,Copilot,"This PR implements a clear button for the Todo widget in VS Code's chat interface with enhanced accessibility features, allowing users to quickly clear all tasks without confirmation dialogs."
+notice,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,262311,Copilot,"This implementation replaces the configurable command reporting system with a hardcoded allow list for terminal tool telemetry, addressing privacy and maintainability concerns."
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,262311,Copilot,"This implementation replaces the configurable command reporting system with a hardcoded allow list for terminal tool telemetry, addressing privacy and maintainability concerns."
+revisit,dialogue,dev named debt,microsoft/vscode,262311,Copilot,Removed the configuration setting and created a hardcoded allow list near the telemetry code in runInTerminalTool.ts.
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,262316,Copilot,**Removed legacy hack** that relied on string-based documentation matching
+notice,dialogue,dev raised concern/question,microsoft/vscode,282695,Copilot,Consider using a more meaningful placeholder like '-' or 'Default' to make it clear this is intentional rather than missing data.
+notice,dialogue,neutral dev comment before,microsoft/vscode,265731,Copilot,"The condition check inside should be removed since this method is only called when the setup should not be shown, making the container class check redundant."
+revisit,dialogue,dev raised concern/question,microsoft/vscode,268490,Copilot,"Yes, I've introduced constant for this action ID and updated all references to use it instead of the hardcoded string."
+notice,dialogue,dev raised concern/question,microsoft/vscode,268490,Copilot,"Yes, I've updated all remaining hardcoded ""workbench.action.openChat"" references to use the constant."
+notice,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,270224,Copilot,"This PR implements inline editing functionality for TODO items in the chat widget, allowing users to edit TODO item titles directly in the UI with a simple and intuitive interaction pattern."
+notice,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,270229,Copilot,"FieldThree is an optional field, and I want to leave it blank."
+revisit,pr_desc,SPONTANEOUS (no dev signal),microsoft/vscode,286185,Copilot,Removed hardcoded keybinding references from selection mode action titles and tooltips:
+revisit,dialogue,neutral dev comment before,primer/react,6197,Copilot,Fixed the duplicate className issue - removed the incorrect conditional duplicate class assignment (420f132)
+revisit,pr_desc,SPONTANEOUS (no dev signal),primer/react,6244,Copilot,- **Updated 40+ test files** to use the new array structure instead of hardcoded blocks
+revisit,dialogue,dev raised concern/question,primer/react,6244,Copilot,I've removed all the duplicate code from the migrated files.
+revisit,pr_desc,SPONTANEOUS (no dev signal),primer/react,6406,Copilot,- **Cleaned up redundant imports**: Removed duplicate import that was importing both and from the same module
+revisit,pr_desc,SPONTANEOUS (no dev signal),primer/react,6847,Copilot,"- **Fixed accessibility issues** in the Storybook story by replacing hardcoded background and border colors with proper Primer design tokens, ensuring the story adapts correctly to both light and dark"
+notice,dialogue,dev named debt,microsoft/vscode,288294,Copilot,"Yes, you're right - the string export should be removed once we switch to IPC."
+notice,pr_desc,SPONTANEOUS (no dev signal),openthread/openthread,12117,Copilot,- Document any errors encountered as well as the steps taken to workaround them.
+revisit,dialogue,dev raised concern/question,open-metadata/OpenMetadata,25116,Copilot,Fixed in commit 16e6000 - now using the existing function instead of duplicating the logic inline.
+notice,pr_desc,SPONTANEOUS (no dev signal),reown-com/appkit,4741,devin-ai-integration[bot],"This is a follow-up to PAY-52, specifically implementing native SOL token support as requested by TomTom (tomas.rawski@reown.com)."
+revisit,dialogue,dev named debt,MudBlazor/MudBlazor,12286,Copilot,"Added and to both and tests, and removed the duplicate tests I had created."
+notice,dialogue,neutral dev comment before,MudBlazor/MudBlazor,12339,Copilot,"If were set to 0 or negative (even though it's currently hardcoded to 8), the method would fail."
+revisit,pr_desc,SPONTANEOUS (no dev signal),MudBlazor/MudBlazor,12513,Copilot,- **Eliminated ParseRegex duplication**: Extracted duplicated method from 4 command classes into single shared static method in KeyMapBuilder (~60 lines removed)
+notice,pr_desc,SPONTANEOUS (no dev signal),MudBlazor/MudBlazor,12523,Copilot,"Try to fix this flaky test, re-run tests, check if its still failing, re-run again to make sure, repeat until it's guaranteed to not fail:"
+revisit,pr_desc,SPONTANEOUS (no dev signal),pingcap/tidb,64328,Copilot,- : Removed duplicate method definition
+revisit,dialogue,dev raised concern/question,serverpod/serverpod,3868,Copilot,"Updated all 22 test files to import the shared extensions instead of defining their own, eliminating duplication."
+revisit,dialogue,dev named debt,serverpod/serverpod,3941,Copilot,Removed the duplicate test file as it was redundant with .
+notice,pr_desc,SPONTANEOUS (no dev signal),primer/react,7394,Copilot,Add a comment in the code explaining this is temporary:
+notice,dialogue,dev raised concern/question,primer/react,7419,Copilot,**Remove SSR hydration workarounds**: The localStorage sync in could be simplified if we're willing to break SSR compatibility.
+notice,dialogue,dev raised concern/question,serverpod/serverpod,4168,Copilot,"I'm encountering a technical limitation with the push mechanism - the rebased branch needs to be force-pushed, but the automated tool is trying to rebase again which creates conflicts."
+notice,pr_desc,SPONTANEOUS (no dev signal),serverpod/serverpod,4182,Copilot,This is unnecessary—the client should handle placeholder rendering.
+notice,pr_desc,SPONTANEOUS (no dev signal),serverpod/serverpod,4267,Copilot,- This is a larger refactor that could be done in a future PR
+notice,pr_desc,SPONTANEOUS (no dev signal),serverpod/serverpod,4276,Copilot,This is necessary because PostgreSQL's pgvector does not support for dimension changes.
+notice,dialogue,dev alluded to error,serverpod/serverpod,4486,Copilot,"I understand the requirement - the ignore comment needs to be before the deprecated parameter usage, not before the method name."
+revisit,dialogue,dev named debt,scylladb/scylladb,27114,Copilot,The log is informational and the fix makes it more useful by showing the actual IP address instead of duplicating the host ID (commit 9e52e1b).
+notice,dialogue,dev alluded to error,scylladb/scylladb,27476,Copilot,"However, I cannot force-push the rebased branch due to tool restrictions - a maintainer will need to force-push or I'll need to use an alternative approach."
+notice,dialogue,dev raised concern/question,scylladb/scylladb,27545,Copilot,"You may need to either manually create the PR from the commit, or enable force-push temporarily so I can replace the branch history."
+revisit,pr_desc,SPONTANEOUS (no dev signal),scylladb/scylladb,27578,Copilot,This approach eliminates code duplication while maintaining clean API design.
+revisit,dialogue,dev raised concern/question,scylladb/scylladb,27578,Copilot,Refactored to eliminate code duplication (commit ce2d887)
+notice,dialogue,dev raised concern/question,airbytehq/airbyte,62108,devin-ai-integration[bot],"Based on my analysis of the connectors_qa codebase, I searched for hardcoded references to the OSS repository and found:"
+notice,pr_desc,SPONTANEOUS (no dev signal),streamlit/streamlit,13107,Copilot,"Consider defining a specific interface for the tree parameter or using a more specific type from the unified/mdast ecosystem."",""fixFiles"":[{""filePath"":""frontend/lib/src/components/shared/StreamlitMark"
+revisit,dialogue,neutral dev comment before,streamlit/streamlit,13108,Copilot,Remove line 169 to avoid duplication.
+revisit,dialogue,dev raised concern/question,streamlit/streamlit,13157,Copilot,"Removing the TODO from all similar suppressions if they're all intentional, or"
+revisit,dialogue,SPONTANEOUS (no dev signal),tldraw/tldraw,6743,claude[bot],Replace hardcoded text measurement with proper editor.textMeasure.measureText()
+notice,dialogue,dev raised concern/question,unoplatform/uno,21705,Copilot,"This would be a good follow-up feature, but I'd recommend creating a separate issue to track it since it's beyond the scope of HTML format support covered in this PR."
+notice,dialogue,dev alluded to error,unoplatform/uno,21844,Copilot,"This approach is fragile and may not handle all YAML edge cases (quoted strings, multiline values, escape sequences, etc.)."
+notice,dialogue,dev raised concern/question,unoplatform/uno,22006,Copilot,"The comment at line 1359 states: ""This method needs to be aligned with the symbols query in BindableTypeProvidersSourceGenerator."""
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,63317,devin-ai-integration[bot],**⚠️ Important**: This PR leaves the codebase in a mixed state with both old and new config formats.
+notice,dialogue,dev alluded to error,unoplatform/uno,22167,Copilot,"The documentation states ""Colors are displayed from bottom to top on each day item"" but this is an implementation detail that may not be accurate since visual rendering is not yet implemented (as note"
+notice,dialogue,dev alluded to error,unoplatform/uno,22180,Copilot,"Since sets , I now check for this property and skip the blur padding expansion when is ."
+revisit,dialogue,dev raised concern/question,unoplatform/uno,22243,Copilot,Changed to and removed the duplicate note.
+notice,dialogue,dev raised concern/question,unoplatform/uno,22299,Copilot,"Since this code already checks , the redundant check for should be removed to avoid relying on deprecated APIs."
+notice,dialogue,dev raised concern/question,unoplatform/uno,22359,Copilot,"For other unoplatform repositories, I've created placeholders and structure since I don't have access to:"
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,71239,devin-ai-integration[bot],This is a follow-up to #71191.
+notice,dialogue,dev named debt,airbytehq/airbyte,71284,devin-ai-integration[bot],"Sounds good - I'll leave it as ""Contact Airbyte"" for now."
+revisit,dialogue,dev named debt,wolfSSL/wolfssl,9467,devin-ai-integration[bot],Removed duplicate wc_AesEncrypt and wc_AesDecrypt documentation from psa.h since these functions are already documented in aes.h.
+notice,dialogue,SPONTANEOUS (no dev signal),windmill-labs/windmill,7478,claude[bot],"This is likely the intended behavior, just confirming it's not accidental that the first few ticks are skipped."
+notice,dialogue,neutral dev comment before,windmill-labs/windmill,7634,claude[bot],This PR adds a new workspace setting to skip error handlers for scripts/flows starting with .
+notice,dialogue,dev named debt,ydb-platform/ydb,24481,Copilot,"Fixed the terminology in the comment to clarify that we're working with muted tests that have their original error information preserved in skipped elements by mute_utils.py, not just generic ""skipped"
+notice,dialogue,dev raised concern/question,ydb-platform/ydb,28119,Copilot,"However, I cannot directly create a new PR through GitHub - you will need to:"
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,71364,devin-ai-integration[bot],This is a follow-up to [#71127](https://github.com/airbytehq/airbyte/pull/71127) which was reverted in [#71355](https://github.com/airbytehq/airbyte/pull/71355) because Kapa wasn't working on the airb
+notice,pr_desc,SPONTANEOUS (no dev signal),NethermindEth/nethermind,9602,Copilot,"This change addresses the issue where LastNStateRootTracker uses a hardcoded value of 128 blocks, which limits the node's ability to serve snap requests on networks with fast block times (like Arbitru"
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,4595,Copilot,- Removed duplicate approval step that used the same token
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,4605,Copilot,"- ✅ **Removed duplicate Chart.js inclusion** - Kept only the cdnjs version with integrity hash, removed redundant jsDelivr import"
+notice,dialogue,dev alluded to error,OWASP-BLT/BLT,4676,Copilot,"The fix is the same pattern I applied in this PR, just needs to be done in the BLT-Action codebase."
+notice,dialogue,neutral dev comment before,OWASP-BLT/BLT,4857,Copilot,Add as an additional trigger (but we'd need to skip code checkout for that trigger for security)
+revisit,dialogue,neutral dev comment before,OWASP-BLT/BLT,4859,Copilot,I also removed an incorrectly nested wrapper div around the hackathon statistics that was causing structure issues.
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,4955,Copilot,Extracted helper methods to eliminate duplication between async/sync paths:
+revisit,dialogue,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5027,Copilot,Remove this duplicate import and use the existing one from line 6.
+revisit,dialogue,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5027,Copilot,Fixed in f7317df - removed duplicate import and used existing urlencode from line 7
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5016,Copilot,✅ Removed duplicate indexes
+revisit,dialogue,neutral dev comment before,OWASP-BLT/BLT,5016,Copilot,✅ Removed duplicate indexes
+notice,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5064,Copilot,| Placeholders | ❌ user_{id} (info leak) | ✅ UUID-based (secure) |
+revisit,dialogue,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5064,Copilot,Deleting duplicate user accounts without any backup or logging is destructive and can result in permanent data loss.
+notice,dialogue,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5064,Copilot,Changed placeholder generation from to using UUIDs to avoid leaking user ID information.
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5159,Copilot,Removed test files that were either completely disabled or duplicated functionality already covered elsewhere.
+revisit,pr_desc,SPONTANEOUS (no dev signal),ydb-platform/ydb,31649,Copilot,- Removed duplicate from local_ydb resources
+revisit,dialogue,neutral dev comment before,ydb-platform/ydb,32257,Copilot,"Fixed: extracted host once before scheme validation, removed duplicate retrieval in commit 1e8f105."
+notice,dialogue,dev raised concern/question,OWASP-BLT/BLT,5171,Copilot,"To fix the failing Selenium tests, I need more information about what's failing."
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5215,Copilot,- **Removed hardcoded milestone data**: Deleted ~450 lines of static milestone dictionaries from
+revisit,dialogue,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5236,Copilot,Consider either removing the duplicate entry in section 3.1 or clarifying that it's a cross-reference to section 1.1.
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5248,Copilot,"Removed two redundant management commands that duplicate existing, better-implemented functionality."
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5292,Copilot,- Removed hardcoded DJANGO_LIVE_TEST_SERVER_ADDRESS to allow parallel execution
+revisit,dialogue,dev named debt,OWASP-BLT/BLT,5292,Copilot,Removed the hardcoded from test_main.py.
+notice,dialogue,dev alluded to error,OWASP-BLT/BLT,5295,Copilot,"For now, since this PR is specifically for apt caching optimization and the test failure is unrelated, I recommend:"
+revisit,pr_desc,SPONTANEOUS (no dev signal),OWASP-BLT/BLT,5440,Copilot,✅ Eliminated duplicate API calls by fetching comments once
+notice,dialogue,dev raised concern/question,apache/beam,37091,claudevdm,So I am not sure if we need to be covering something users may or may not be doing.
+notice,pr_desc,SPONTANEOUS (no dev signal),airbytehq/airbyte,66548,devin-ai-integration[bot],"However, any content created with new metadata keys after this change would need to be updated if reverted."
+notice,dialogue,dev named debt,airbytehq/airbyte,66556,devin-ai-integration[bot],I'll wait for @ian-at-airbyte's thoughts on whether to implement any of these improvements now or address them in follow-up work.
+notice,dialogue,dev named debt,airbytehq/airbyte,68649,devin-ai-integration[bot],Would you prefer I only fix the README.md pattern and leave the others as-is?
+notice,dialogue,dev named debt,scylladb/scylladb,25423,Copilot,"When I create a squashed commit locally, the rebase detects that the ""patch contents are already upstream"" (from the original 6 commits) and drops the new commit, leaving the original 6 commits intact"
+revisit,pr_desc,SPONTANEOUS (no dev signal),department-of-veterans-affairs/vets-api,19131,devin-mccurdy,"In the process of changing many of the vaos module's vaos-service requests over to use VPG as a drop in replacement, we've ended up with duplicated tests and this PR is a first step in separating ""new"
+notice,dialogue,dev alluded to error,apache/beam,35433,claudevdm,"I added a workaround, will also remove this when switching to cloudpickle."
+revisit,dialogue,dev alluded to error,apache/beam,35433,claudevdm,"I added a workaround, will also remove this when switching to cloudpickle."
