@@ -37,6 +37,15 @@ def has_debt(t):
     return sd.detect_conversational(t) is not None
 
 
+def _classify(pd, pe, pcr, pc, ph):
+    if pd: return "dev named debt"
+    if pe: return "dev alluded to error"
+    if pcr: return "changes_requested"
+    if pc: return "dev raised concern/question"
+    if ph: return "neutral dev comment before"
+    return "SPONTANEOUS (no dev signal)"
+
+
 def trigger(tl, i):
     pd = pe = pc = pcr = ph = False
     for j in range(i):
@@ -48,12 +57,46 @@ def trigger(tl, i):
             if has_debt(tj): pd = True
             if ERR.search(tj): pe = True
             if CONCERN.search(tj): pc = True
-    if pd: return "dev named debt"
-    if pe: return "dev alluded to error"
-    if pcr: return "changes_requested"
-    if pc: return "dev raised concern/question"
-    if ph: return "neutral dev comment before"
-    return "SPONTANEOUS (no dev signal)"
+    return _classify(pd, pe, pcr, pc, ph)
+
+
+def code_trigger(conn, pr_id, authored_at):
+    """Same taxonomy as trigger(), but for a CODE-comment SATD instance: scan the
+    DEVELOPER turns in the PR that happened BEFORE the introducing commit."""
+    if not pr_id or not authored_at:
+        return "SPONTANEOUS (no dev signal)"
+    pd = pe = pcr = pc = ph = False
+    for e in conn.execute(
+            "SELECT actor, kind, body FROM review_events "
+            "WHERE pr_id=? AND ts IS NOT NULL AND ts<=? AND body IS NOT NULL "
+            "ORDER BY ts, id", (pr_id, authored_at)):
+        if agents.classify_actor(e["actor"])[0] != "human":
+            continue
+        ph = True
+        tj = sd.strip_code(e["body"] or "")
+        if e["kind"] == "changes_requested": pcr = True
+        if has_debt(tj): pd = True
+        if ERR.search(tj): pe = True
+        if CONCERN.search(tj): pc = True
+    return _classify(pd, pe, pcr, pc, ph)
+
+
+def preceded_by_convo_admission(conn, pr_id, authored_at, author):
+    """Did the authoring agent ALREADY self-admit this debt in the PR conversation
+    BEFORE this commit landed? If so, the code comment is a follow-through on that
+    conversational admission — NOT an independent code-channel noticing, and counting
+    it would double-count against the dialogue admissions."""
+    if not pr_id or not authored_at or not author:
+        return False
+    for e in conn.execute(
+            "SELECT actor, body FROM review_events "
+            "WHERE pr_id=? AND ts IS NOT NULL AND ts<? AND body IS NOT NULL "
+            "ORDER BY ts, id", (pr_id, authored_at)):
+        if e["actor"] != author:            # the authoring agent's own turns only
+            continue
+        if sd.is_self_admission(sd.strip_code(e["body"] or "")):
+            return True
+    return False
 
 
 def run():
@@ -100,6 +143,25 @@ def run():
         "LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
         "WHERE i.channel='code_comment' AND i.introducer_kind='coding_agent' GROUP BY ph")}
 
+    # code channel (TRIGGER) — same taxonomy as the dialogue channel, computed from
+    # the developer turns that preceded the introducing commit. Persist to circumstance.
+    code_trg = Counter()
+    n_followthrough = 0          # committed AFTER the agent already admitted it in convo
+    for inst in conn.execute(
+            "SELECT i.id id, cm.pr_id pr_id, cm.authored_at ts, p.author author "
+            "FROM satd_instances i "
+            "LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
+            "LEFT JOIN prs p ON p.id=cm.pr_id "
+            "WHERE i.channel='code_comment' AND i.introducer_kind='coding_agent'").fetchall():
+        if preceded_by_convo_admission(conn, inst["pr_id"], inst["ts"], inst["author"]):
+            circ = "AFTER convo admission (follow-through)"
+            n_followthrough += 1
+        else:
+            circ = code_trigger(conn, inst["pr_id"], inst["ts"])
+        code_trg[circ] += 1
+        conn.execute("UPDATE satd_instances SET circumstance=? WHERE id=?", (circ, inst["id"]))
+    conn.commit()
+
     pct = lambda n, d: f"{100*n/d:.1f}%" if d else "n/a"
 
     def show(title, cnt):
@@ -121,9 +183,37 @@ def run():
     print("\n### REVISITING (removing/resolving debt) ###")
     show("  dialogue (replies/comments)", revisit["dialogue"])
     print(f"  PR descriptions: {sum(revisit['pr_desc'].values())}")
-    print("\n### CODE-COMMENT SATD by commit phase (n=2,837) ###")
+    ctot = sum(code.values())
+    print(f"\n### CODE-COMMENT SATD by commit phase (n={ctot}) ###")
     print(f"  first_attempt (spontaneous): {code.get('first_attempt',0)}  |  "
           f"revision (elicited): {code.get('revision',0)}  |  human_applied (not agent): {code.get('human_applied',0)}")
+
+    FT = "AFTER convo admission (follow-through)"
+    code_total = sum(code_trg.values())
+    indep = Counter({k: v for k, v in code_trg.items() if k != FT})   # independent code-noticing
+    indep_tot = sum(indep.values())
+    print(f"\n### CODE-COMMENT SATD by TRIGGER — same criteria as dialogue (n={code_total}) ###")
+    print(f"  EXCLUDED as follow-through (agent already admitted it in convo "
+          f"BEFORE this commit): {n_followthrough} ({pct(n_followthrough, code_total)})")
+    print(f"  independent code-channel noticing: {indep_tot}")
+    show("    of which, by trigger", indep)
+
+    # headline: across BOTH channels, how much of the AI's debt-noticing was
+    # developer-driven vs spontaneous — code channel counts INDEPENDENT instances only
+    # (follow-throughs are already represented in the dialogue channel).
+    def eli_spo(cnt):
+        tot = sum(cnt.values()); sp = cnt.get("SPONTANEOUS (no dev signal)", 0)
+        return tot, tot - sp, sp
+    dt, de, ds = eli_spo(notice["dialogue"])
+    kt, ke, ks = eli_spo(indep)
+    print("\n" + "=" * 66)
+    print("  HEADLINE: how AI debt-noticing was triggered (both channels)")
+    print("=" * 66)
+    print(f"  conversation admissions    : {dt:5}   elicited {de} ({pct(de,dt)})   spontaneous {ds} ({pct(ds,dt)})")
+    print(f"  code-comment (independent) : {kt:5}   elicited {ke} ({pct(ke,kt)})   spontaneous {ks} ({pct(ks,kt)})")
+    print(f"  [code follow-throughs already counted in conversation: {n_followthrough}]")
+    T, E, S = dt + kt, de + ke, ds + ks
+    print(f"  ALL noticing (de-duped)    : {T:5}   elicited {E} ({pct(E,T)})   spontaneous {S} ({pct(S,T)})")
 
     out = HERE / "agent_notice_revisit.csv"
     with open(out, "w", newline="") as f:

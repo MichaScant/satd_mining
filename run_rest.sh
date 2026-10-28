@@ -39,24 +39,28 @@ run_stage() {
 
 echo "[$(ts)] pipeline start. GITHUB_TOKEN $([ -n "${GITHUB_TOKEN:-}" ] && echo set || echo UNSET)" | tee -a "$LOG"
 
-# run_stage "stage3b_conversational" python3 stage3b_conversational.py   # only if it never finished
-run_stage "stage3_satd_scan"       python3 stage3_satd_scan.py
-run_stage "stage3c_reviewer_flags" python3 stage3c_reviewer_flags.py
+# python3 -u so output streams live through tee (otherwise it buffers and looks "stuck")
+# run_stage "stage3b_conversational" python3 -u stage3b_conversational.py   # only if it never finished
+run_stage "stage3_satd_scan"       python3 -u stage3_satd_scan.py
+run_stage "stage3c_reviewer_flags" python3 -u stage3c_reviewer_flags.py
 
 # disk check before stage5 clones repos (you've hit the quota wall before)
 echo "[$(ts)] disk before stage5:" | tee -a "$LOG"
 df -h . | tee -a "$LOG"
 du -sh data/clones 2>/dev/null | tee -a "$LOG" || true
 
-run_stage "stage5_track"           python3 stage5_track.py
+run_stage "stage5_track"           python3 -u stage5_track.py
 # stamp agent attribution + fill revisit counts on already-tracked instances (from events)
-run_stage "backfill_attribution"   python3 backfill_attribution.py
-# text report + CSV (graphs too if matplotlib is installed on this box)
-run_stage "report"                 python3 report.py
+run_stage "backfill_attribution"   python3 -u backfill_attribution.py
+# text report + CSV + graphs
+run_stage "report"                 python3 -u report.py
+# conversational notice/revisit analysis + its graphs (uses the full conversation data)
+run_stage "notice_revisit"         python3 -u analyze_reviewer_elicited_satd.py
+run_stage "graphs"                 python3 -u graph_admissions.py
 
 echo ""                                 | tee -a "$LOG"
 echo "===== [$(ts)] SUMMARY ====="       | tee -a "$LOG"
-for s in stage3_satd_scan stage3c_reviewer_flags stage5_track backfill_attribution report; do
+for s in stage3_satd_scan stage3c_reviewer_flags stage5_track backfill_attribution report notice_revisit graphs; do
   printf '  %-24s %s\n' "$s" "${STATUS[$s]:-SKIPPED}" | tee -a "$LOG"
 done
 echo "full log: $(pwd)/$LOG" | tee -a "$LOG"
