@@ -147,8 +147,10 @@ def run():
     # the developer turns that preceded the introducing commit. Persist to circumstance.
     code_trg = Counter()
     n_followthrough = 0          # committed AFTER the agent already admitted it in convo
+    # prefer the TRUE commit (committer) date fetched by fetch_commit_dates.py; fall back to
+    # git author date where the commit couldn't be resolved (deleted/DMCA).
     for inst in conn.execute(
-            "SELECT i.id id, cm.pr_id pr_id, cm.authored_at ts, p.author author "
+            "SELECT i.id id, cm.pr_id pr_id, COALESCE(cm.committed_at, cm.authored_at) ts, p.author author "
             "FROM satd_instances i "
             "LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
             "LEFT JOIN prs p ON p.id=cm.pr_id "

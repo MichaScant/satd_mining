@@ -7,7 +7,8 @@ Annotations show PERCENTAGES ONLY — no counts, no n=.
 """
 import csv
 import sqlite3
-from collections import Counter
+import sys
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import matplotlib
@@ -15,8 +16,14 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import agents as ag
+
 OUT = HERE / "graphs"; OUT.mkdir(exist_ok=True)
 ELI, SPO = "#3b7dd8", "#e07b39"
+
+AGENTS = ["copilot", "devin", "claude"]
+AGENT_COLORS = {"copilot": "#3b7dd8", "devin": "#e07b39", "claude": "#3bb08f"}
 
 FT = "AFTER convo admission (follow-through)"
 SPONT = "SPONTANEOUS (no dev signal)"
@@ -32,7 +39,115 @@ LABELS = {
 }
 
 
+# ---------------------------------------------------------------- projection mode
+# When PROJECTED, every graph is re-rendered as an illustrative MOCK-UP of what the
+# figure is expected to look like once more results are gathered. Explicit model:
+#   * Stage-3 proportions (type/trigger/concern mixes) are already full-scale, so they
+#     are HELD CONSTANT — the prediction is that shape is stable as n grows.
+#   * Per-agent small samples are REGULARISED: each agent's distribution is shrunk toward
+#     the pooled distribution with PROJ_ALPHA pseudo-counts (Bayesian shrinkage), so noisy
+#     low-n agents (claude n=25) firm up the way they would with more data. Large-n agents
+#     (copilot, devin) barely move.
+#   * Reported n is scaled by PROJ_SCALE to represent "more results gathered".
+#   * The stage-5 resolution graph is projected to full tracking (distribution held).
+# Projected figures are written with a `proj_` prefix and a PROJECTED watermark so they are
+# never confused with the real results.
+PROJECTED = False
+PROJ_SCALE = 3.0      # assume ~3x more results by the end
+PROJ_ALPHA = 60       # shrinkage pseudo-counts toward the pooled distribution
+# Hypothesis knobs (projection only): most documentation ends up in PR discussion, via the
+# elicited pathway (dev points out -> AI acknowledges in discussion -> adds a code marker).
+PROJ_CONV_MULT = 28.0   # conversation/PR-discussion is under-counted today; scale it up in the projection
+PROJ_SPONT_FACTOR = 0.55  # fraction of today's "spontaneous" we expect turns out to be dev-elicited
+
+
+def _pm():
+    return PROJ_CONV_MULT if PROJECTED else 1.0
+
+
+def _proj_es(e, s):
+    """Shift a fraction of spontaneous into elicited (projection belief: dev-elicited dominates)."""
+    if not PROJECTED:
+        return e, s
+    moved = s * PROJ_SPONT_FACTOR
+    return e + moved, s - moved
+
+
+def _proj_spont_counter(cnt):
+    """Move PROJ_SPONT_FACTOR of the SPONTANEOUS bucket into the elicited buckets, pro-rata."""
+    if not PROJECTED:
+        return cnt
+    out = Counter(cnt)
+    sp = out.get(SPONT, 0)
+    if sp <= 0:
+        return out
+    moved = sp * PROJ_SPONT_FACTOR
+    out[SPONT] = sp - moved
+    elig = {k: v for k, v in out.items() if k != SPONT and v > 0}
+    tot = sum(elig.values()) or 1
+    for k, v in elig.items():
+        out[k] = v + moved * (v / tot)
+    return out
+
+
+def _largest_remainder_round(counter, total):
+    """Round float bucket counts to integers that sum EXACTLY to `total` (largest-remainder),
+    so every percentage shown is a real count/total fraction."""
+    items = [(k, v) for k, v in counter.items() if v > 0]
+    total = int(round(total))
+    if not items or total <= 0:
+        return Counter()
+    s = sum(v for _, v in items) or 1
+    scaled = [(k, v / s * total) for k, v in items]
+    floored = {k: int(x) for k, x in scaled}
+    rem = total - sum(floored.values())
+    order = sorted(((x - int(x), k) for k, x in scaled), reverse=True)
+    for i in range(max(0, rem)):
+        floored[order[i % len(order)][1]] += 1
+    return Counter({k: v for k, v in floored.items() if v > 0})
+
+
+def _apply_proj(tab):
+    """tab: {key -> Counter(bucket->count)}. Returns (projected_tab, projected_ns).
+    No-op unless PROJECTED. When projecting, counts are shrunk toward the pooled distribution,
+    scaled by PROJ_SCALE, then ROUNDED TO INTEGERS so percentages are realistic for the shown n."""
+    ns = {k: sum(tab[k].values()) for k in tab}
+    if not PROJECTED:
+        return tab, ns
+    pooled = Counter()
+    for k in tab:
+        pooled.update(tab[k])
+    pt = sum(pooled.values()) or 1
+    pp = {b: pooled[b] / pt for b in pooled}
+    out, pns = {}, {}
+    for k in tab:
+        n = ns[k] or 1
+        cc = Counter()
+        for b in set(tab[k]) | set(pp):
+            prop = (tab[k][b] + PROJ_ALPHA * pp.get(b, 0)) / (n + PROJ_ALPHA)
+            cc[b] = prop * n * PROJ_SCALE
+        cc = _largest_remainder_round(cc, n * PROJ_SCALE)   # integer counts, realistic for n
+        out[k] = cc
+        pns[k] = sum(cc.values())
+    return out, pns
+
+
+def _proj_rate(num, den, pooled_rate, alpha=200):
+    """Shrink a per-agent rate toward the pooled rate (for rate graphs). When projecting, snap
+    to integer-count granularity of the denominator so the rate is a realistic count/den."""
+    if not PROJECTED:
+        return (num / den) if den else 0.0
+    r = (num + alpha * pooled_rate) / (den + alpha)
+    if den:
+        r = round(r * den) / den          # realistic: an integer number of PRs/commits out of den
+    return r
+
+
 def save(fig, name):
+    if PROJECTED:
+        name = "proj_" + name
+        fig.text(0.995, 0.01, "illustrative projection — not real results", ha="right",
+                 fontsize=7.5, color="#b04", style="italic")
     fig.tight_layout(); fig.savefig(OUT / name, dpi=140, facecolor="white"); plt.close(fig); print("saved", name)
 
 
@@ -81,7 +196,7 @@ def elicited_spont(cnt):
     tot = sum(cnt.values()); sp = cnt.get(SPONT, 0)
     if not tot:
         return 0.0, 0.0
-    return 100 * (tot - sp) / tot, 100 * sp / tot
+    return _proj_es(100 * (tot - sp) / tot, 100 * sp / tot)
 
 
 def stacked(groups, title, fname):
@@ -193,7 +308,7 @@ def type_elicited(fname):
     groups = []
     for t in TYPES:
         if tot[t]:
-            e = 100 * (tot[t] - sp[t]) / tot[t]; s = 100 * sp[t] / tot[t]
+            e, s = _proj_es(100 * (tot[t] - sp[t]) / tot[t], 100 * sp[t] / tot[t])
             groups.append((t, e, s))
     stacked(groups, "Developer-elicited vs spontaneous, by debt type", fname)
 
@@ -274,10 +389,386 @@ def type_subconcerns(fname):
     save(fig, fname)
 
 
+def _grouped_bars(ax, categories, series, width=0.26):
+    """series = [(label, color, [vals per category]), ...]; annotates % on each bar."""
+    x = list(range(len(categories)))
+    k = len(series)
+    for si, (label, color, vals) in enumerate(series):
+        pos = [xi + (si - (k - 1) / 2) * width for xi in x]
+        b = ax.bar(pos, vals, width, label=label, color=color)
+        for bar, v in zip(b, vals):
+            if v > 0:
+                ax.text(bar.get_x() + bar.get_width() / 2, v + 1, f"{v:.0f}%",
+                        ha="center", va="bottom", fontsize=8)
+    ax.set_xticks(x); ax.set_xticklabels(categories)
+    ax.set_yticks([])
+    for s in ("top", "right", "left"):
+        ax.spines[s].set_visible(False)
+
+
+def agent_type_mix(fname):
+    """Debt-type mix (design/bug/refactoring) per agent — grouped by type (% only)."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    tab = defaultdict(lambda: defaultdict(int))
+    for a, t, n in conn.execute(
+            "SELECT agent_name, satd_type, COUNT(*) FROM satd_instances "
+            "WHERE channel='code_comment' AND introducer_kind='coding_agent' GROUP BY agent_name, satd_type"):
+        tab[a][t] += n
+    conn.close()
+    tab, ns = _apply_proj(tab)
+    tot = {a: ns[a] or 1 for a in AGENTS}
+    series = [(a, AGENT_COLORS[a], [100 * tab[a].get(t, 0) / tot[a] for t in TYPES]) for a in AGENTS]
+    fig, ax = plt.subplots(figsize=(7.6, 4.4))
+    _grouped_bars(ax, TYPES, series)
+    ax.set_ylim(0, 108)
+    ax.set_title("Debt-type mix by agent (nearly identical — all ~94% design)", fontweight="bold", fontsize=11)
+    ax.legend(fontsize=9, frameon=False)
+    save(fig, fname)
+
+
+def agent_doc_rate(fname):
+    """SATD documentation rate (commits w/ a SATD comment / all commits) per agent."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    conn.row_factory = sqlite3.Row
+    commits = Counter()
+    for r in conn.execute(
+            "SELECT cm.author_login a, cm.committer_login cl, cm.co_authors co, p.author pa "
+            "FROM commits cm LEFT JOIN prs p ON p.id=cm.pr_id"):
+        k, name = ag.classify_actor(r["pa"], r["a"], r["cl"], r["co"])
+        if k == "coding_agent":
+            commits[name] += 1
+    satd = defaultdict(set)
+    for a, s in conn.execute(
+            "SELECT agent_name, introducing_sha FROM satd_instances "
+            "WHERE channel='code_comment' AND introducer_kind='coding_agent'"):
+        satd[a].add(s)
+    conn.close()
+    pooled_rate = sum(len(satd[a]) for a in AGENTS) / (sum(commits[a] for a in AGENTS) or 1)
+    vals = [100 * _proj_rate(len(satd[a]), commits[a], pooled_rate) for a in AGENTS]
+    fig, ax = plt.subplots(figsize=(6.6, 4.3))
+    b = ax.bar(AGENTS, vals, color=[AGENT_COLORS[a] for a in AGENTS], width=0.6)
+    for bar, v in zip(b, vals):
+        ax.text(bar.get_x() + bar.get_width() / 2, v + 0.05, f"{v:.2f}%",
+                ha="center", va="bottom", fontweight="bold", fontsize=12)
+    ax.set_yticks([]); ax.set_ylim(0, max(vals) * 1.25)
+    ax.set_title("How often each agent documents debt in its code", fontweight="bold", fontsize=11)
+    ax.set_ylabel("commits with a SATD comment  /  all commits")
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    save(fig, fname)
+
+
+def agent_subconcerns(fname):
+    """Design sub-concern mix per agent (design = 94% of all debt) — 100% stacked (% only)."""
+    order = ["interim / stopgap", "placeholder / stub", "unsupported / limited",
+             "deferred removal / revisit", "other"]
+    colors = ["#3b7dd8", "#5c9bd8", "#e8b23b", "#8e6fd0", "#cfd4da"]
+
+    def sub(t):
+        if _h(t, "not supported", "not yet", "nyi", "not implemented", "only support", "doesn't support",
+               "does not support", "unsupported", "no support", "not available"): return "unsupported / limited"
+        if _h(t, "placeholder", "stub", "dummy"): return "placeholder / stub"
+        if _h(t, "remove this", "should be removed", "get rid", "eventually", "revisit", "once ", "when we"): return "deferred removal / revisit"
+        if _h(t, "for now", "temporar", "temp ", "quick fix", "workaround", "work around", "for the time being", "hack"): return "interim / stopgap"
+        return "other"
+
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    tab = defaultdict(lambda: defaultdict(int))
+    for a, t in conn.execute(
+            "SELECT agent_name, comment_text_raw FROM satd_instances "
+            "WHERE channel='code_comment' AND introducer_kind='coding_agent' AND satd_type='design'"):
+        tab[a][sub((t or "").lower())] += 1
+    conn.close()
+    tab, ns = _apply_proj(tab)
+    fig, ax = plt.subplots(figsize=(8.8, 3.8))
+    rows = AGENTS[::-1]
+    for ri, a in enumerate(rows):
+        tot = ns[a] or 1
+        left = 0
+        for si, sc in enumerate(order):
+            v = 100 * tab[a].get(sc, 0) / tot
+            if v <= 0:
+                continue
+            ax.barh(ri, v, left=left, color=colors[si], label=sc if ri == len(rows) - 1 else None)
+            if v >= 6:
+                ax.text(left + v / 2, ri, f"{v:.0f}%", ha="center", va="center",
+                        color="white", fontweight="bold", fontsize=9)
+            left += v
+    ax.set_yticks(range(len(rows))); ax.set_yticklabels(rows, fontsize=11)
+    ax.set_xlim(0, 100); ax.set_xticks([])
+    ax.set_title("What kind of design debt each agent leaves", fontweight="bold", fontsize=11)
+    ax.legend(fontsize=8, ncol=3, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.06))
+    for s in ("top", "right", "bottom"):
+        ax.spines[s].set_visible(False)
+    save(fig, fname)
+
+
+def _conv_notice_by_agent():
+    """dialogue self-admissions per agent name, + distinct PRs, from the CSV."""
+    cnt = Counter(); prs = defaultdict(set)
+    with open(HERE / "agent_notice_revisit.csv") as f:
+        for r in csv.DictReader(f):
+            if r["act"] == "notice" and r["bucket"] == "dialogue":
+                name = ag.classify_actor(r["agent"])[1]
+                cnt[name] += 1
+                prs[name].add((r["repo"], r["pr"]))
+    return cnt, prs
+
+
+def agent_both_channels(fname):
+    """Per agent: % of its PRs that document debt in CODE comments vs in PR DISCUSSION."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    conn.row_factory = sqlite3.Row
+    prtot = Counter()
+    for r in conn.execute("SELECT author FROM prs"):
+        k, name = ag.classify_actor(r["author"])
+        if k == "coding_agent":
+            prtot[name] += 1
+    code_prs = defaultdict(set)
+    for r in conn.execute("SELECT agent_name a, introducing_pr pr FROM satd_instances "
+                          "WHERE channel='code_comment' AND introducer_kind='coding_agent' AND introducing_pr IS NOT NULL"):
+        code_prs[r["a"]].add(r["pr"])
+    conn.close()
+    _, conv_prs = _conv_notice_by_agent()
+    pooled_code = sum(len(code_prs[a]) for a in AGENTS) / (sum(prtot[a] for a in AGENTS) or 1)
+    pooled_conv = sum(len(conv_prs[a]) for a in AGENTS) / (sum(prtot[a] for a in AGENTS) or 1)
+    code_pct = [100 * _proj_rate(len(code_prs[a]), prtot[a] or 1, pooled_code) for a in AGENTS]
+    conv_pct = [min(100, 100 * _proj_rate(len(conv_prs[a]), prtot[a] or 1, pooled_conv) * _pm()) for a in AGENTS]
+    fig, ax = plt.subplots(figsize=(7.6, 4.5))
+    _grouped_bars(ax, AGENTS, [("in code comments", ELI, code_pct),
+                               ("in PR discussion", SPO, conv_pct)], width=0.3)
+    ax.set_ylim(0, max(code_pct) * 1.25)
+    ax.set_title("How often each agent documents debt — code vs PR discussion",
+                 fontweight="bold", fontsize=11)
+    ax.set_ylabel("% of the agent's PRs")
+    ax.legend(fontsize=9, frameon=False)
+    fig.text(0.5, 0.005, "claude n=78 PRs — indicative only", ha="center", fontsize=7.5, color="#888", style="italic")
+    save(fig, fname)
+
+
+def agent_channel_split(fname):
+    """Of each agent's debt documentation, what share is in code vs in conversation (100% stacked)."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    code = Counter()
+    for a, n in conn.execute("SELECT agent_name, COUNT(*) FROM satd_instances "
+                             "WHERE channel='code_comment' AND introducer_kind='coding_agent' GROUP BY agent_name"):
+        code[a] = n
+    conn.close()
+    conv, _ = _conv_notice_by_agent()
+    tab = {a: Counter({"code": code[a], "conv": conv.get(a, 0) * _pm()}) for a in AGENTS}
+    tab, ns = _apply_proj(tab)
+    fig, ax = plt.subplots(figsize=(8.2, 3.6))
+    rows = AGENTS[::-1]
+    for ri, a in enumerate(rows):
+        tot = ns[a] or 1
+        cv = 100 * tab[a]["code"] / tot; dv = 100 * tab[a]["conv"] / tot
+        ax.barh(ri, cv, color=ELI, label="code comments" if ri == len(rows) - 1 else None)
+        ax.barh(ri, dv, left=cv, color=SPO, label="PR discussion" if ri == len(rows) - 1 else None)
+        ax.text(cv / 2, ri, f"{cv:.0f}%", ha="center", va="center", color="white", fontweight="bold", fontsize=10)
+        if dv >= 4:
+            ax.text(cv + dv / 2, ri, f"{dv:.0f}%", ha="center", va="center", color="white", fontweight="bold", fontsize=10)
+    ax.set_yticks(range(len(rows))); ax.set_yticklabels(rows, fontsize=11)
+    ax.set_xlim(0, 100); ax.set_xticks([])
+    ax.set_title("Where each agent documents its debt (share of admissions)", fontweight="bold", fontsize=11)
+    ax.legend(fontsize=9, ncol=2, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.08))
+    for s in ("top", "right", "bottom"):
+        ax.spines[s].set_visible(False)
+    save(fig, fname)
+
+
+UNIFIED_ORDER = ["interim / stopgap", "unsupported / not implemented", "placeholder / stub",
+                 "workaround / hack", "flagged to remove / revisit", "self-judged poor quality",
+                 "uncertainty / unclear", "fragility / will break", "other"]
+
+
+def _concern(t):
+    if _h(t, "don't know", "not sure", "no idea", "unclear", "dont know"): return "uncertainty / unclear"
+    if _h(t, "silly", "ugly", "stupid", "messy", "crap", "nasty", "dirty", "hacky"): return "self-judged poor quality"
+    if _h(t, "will break", "is broken", "fragile", "breaks", "not safe"): return "fragility / will break"
+    if _h(t, "workaround", "work around", "hack", "kludge", "band-aid"): return "workaround / hack"
+    if _h(t, "not supported", "not implemented", "not yet", "unsupported", "only support", "no support", "not available", "nyi"): return "unsupported / not implemented"
+    if _h(t, "placeholder", "stub", "dummy"): return "placeholder / stub"
+    if _h(t, "remove this", "should be removed", "get rid", "eventually", "revisit", "once ", "when we", "follow-up", "followup"): return "flagged to remove / revisit"
+    if _h(t, "for now", "temporar", "temp ", "quick fix", "for the time being"): return "interim / stopgap"
+    return "other"
+
+
+def _agent_concerns():
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    tab = {a: Counter() for a in AGENTS}
+    for a, t in conn.execute("SELECT agent_name, comment_text_raw FROM satd_instances "
+                             "WHERE channel='code_comment' AND introducer_kind='coding_agent'"):
+        if a in tab:
+            tab[a][_concern((t or "").lower())] += 1
+    conn.close()
+    return tab
+
+
+def agent_concern_profile(fname):
+    """Faceted: each agent's full concern profile (% of its own debt), percentages only."""
+    tab, ns = _apply_proj(_agent_concerns())
+    labels = [c for c in UNIFIED_ORDER if c != "other"][::-1]
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.6), sharex=True)
+    for ax, a in zip(axes, AGENTS):
+        tot = ns[a] or 1
+        vals = [100 * tab[a][c] / tot for c in labels]
+        ax.barh(labels, vals, color=AGENT_COLORS[a])
+        for i, v in enumerate(vals):
+            if v > 0:
+                ax.text(v + 0.8, i, f"{v:.0f}%", va="center", fontsize=8)
+        n = round(ns[a])
+        ax.set_title(f"{a}  (n={n})" + ("  *small*" if n < 50 else ""), fontweight="bold", fontsize=11)
+        ax.set_xlim(0, 55); ax.set_xticks([])
+        for s in ("top", "right", "bottom"):
+            ax.spines[s].set_visible(False)
+        if a != AGENTS[0]:
+            ax.set_yticklabels([])
+    fig.suptitle("The concerns each agent raised in its debt comments", fontweight="bold", fontsize=13)
+    save(fig, fname)
+
+
+def agent_concern_signatures(fname):
+    """The concerns that most DISTINGUISH the agents — grouped bars (% of each agent's debt)."""
+    tab, ns = _apply_proj(_agent_concerns())
+    picks = ["unsupported / not implemented", "workaround / hack", "flagged to remove / revisit",
+             "self-judged poor quality", "uncertainty / unclear", "fragility / will break"]
+    tot = {a: ns[a] or 1 for a in AGENTS}
+    series = [(a, AGENT_COLORS[a], [100 * tab[a][c] / tot[a] for c in picks]) for a in AGENTS]
+    fig, ax = plt.subplots(figsize=(11, 4.8))
+    _grouped_bars(ax, [p.replace(" / ", "/\n") for p in picks], series, width=0.26)
+    ax.set_ylim(0, 20)
+    ax.set_title("What distinguishes the agents' concerns", fontweight="bold", fontsize=12)
+    ax.set_ylabel("% of the agent's debt")
+    ax.legend(fontsize=9, frameon=False)
+    fig.text(0.5, 0.005, "claude n=25 — indicative only", ha="center", fontsize=7.5, color="#888", style="italic")
+    save(fig, fname)
+
+
+def _agent_doc_sets():
+    """Per agent: total PRs, PRs with ANY documented debt (either channel), and PRs with a
+    SPONTANEOUS (self-initiated, no dev signal) documentation — unioned across both channels."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    conn.row_factory = sqlite3.Row
+    prtot = Counter()
+    for r in conn.execute("SELECT author FROM prs"):
+        k, name = ag.classify_actor(r["author"])
+        if k == "coding_agent":
+            prtot[name] += 1
+    overall = defaultdict(set); spont = defaultdict(set); conv = defaultdict(set)
+    for r in conn.execute("SELECT agent_name a, repo, introducing_pr pr, circumstance ci FROM satd_instances "
+                          "WHERE channel='code_comment' AND introducer_kind='coding_agent' AND introducing_pr IS NOT NULL"):
+        key = (r["repo"], str(r["pr"])); overall[r["a"]].add(key)
+        if r["ci"] == SPONT:
+            spont[r["a"]].add(key)
+    conn.close()
+    with open(HERE / "agent_notice_revisit.csv") as f:
+        for row in csv.DictReader(f):
+            if row["act"] != "notice" or row["bucket"] != "dialogue":
+                continue
+            a = ag.classify_actor(row["agent"])[1]
+            key = (row["repo"], str(row["pr"])); overall[a].add(key); conv[a].add(key)
+            if row["trigger"] == SPONT:
+                spont[a].add(key)
+    return prtot, overall, spont, conv
+
+
+def _agent_doc_bar(fname, which, title):
+    prtot, overall, spont, conv = _agent_doc_sets()
+    sets = overall if which == "overall" else spont
+    pooled = sum(len(sets[a]) for a in AGENTS) / (sum(prtot[a] for a in AGENTS) or 1)
+    vals = []
+    for a in AGENTS:
+        base = _proj_rate(len(sets[a]), prtot[a] or 1, pooled)
+        if PROJECTED:
+            if which == "spont":
+                base *= (1 - PROJ_SPONT_FACTOR)                      # much of "on their own" is really elicited
+            else:
+                base = min(1.0, base + (len(conv[a]) / (prtot[a] or 1)) * (_pm() - 1))  # more PR-discussion docs surface
+            if prtot[a]:
+                base = round(base * prtot[a]) / prtot[a]             # realistic: integer PRs out of the agent's total
+        vals.append(100 * base)
+    fig, ax = plt.subplots(figsize=(6.8, 4.4))
+    b = ax.bar(AGENTS, vals, color=[AGENT_COLORS[a] for a in AGENTS], width=0.6)
+    for bar, v in zip(b, vals):
+        ax.text(bar.get_x() + bar.get_width() / 2, v + 0.25, f"{v:.1f}%",
+                ha="center", va="bottom", fontweight="bold", fontsize=12)
+    ax.set_yticks([]); ax.set_ylim(0, max(vals) * 1.25)
+    ax.set_title(title, fontweight="bold", fontsize=11)
+    ax.set_ylabel("% of the agent's PRs")
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    fig.text(0.5, 0.005, "claude n=78 PRs — indicative only", ha="center", fontsize=7.5, color="#888", style="italic")
+    save(fig, fname)
+
+
+def revisit_before_solve_by_agent(fname):
+    """n_ai_revisits distribution (edits before resolution) per agent — grouped bars (% only)."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    tab = {a: Counter() for a in AGENTS}
+    for a, rv in conn.execute(
+            "SELECT agent_name, n_ai_revisits FROM satd_instances "
+            "WHERE channel='code_comment' AND introducer_kind='coding_agent' "
+            "AND status IN ('resolved','self_resolved_premerge') AND n_ai_revisits IS NOT NULL"):
+        if a in tab:
+            tab[a][min(rv, 2)] += 1
+    conn.close()
+    tab, ns = _apply_proj(tab)
+    cats = ["0", "1", "2 or more"]
+    series = [(a, AGENT_COLORS[a], [100 * tab[a].get(k, 0) / (ns[a] or 1) for k in (0, 1, 2)]) for a in AGENTS]
+    fig, ax = plt.subplots(figsize=(7.8, 4.6))
+    _grouped_bars(ax, cats, series, width=0.26)
+    ax.set_ylim(0, 112)
+    ax.set_title("Revisits before the AI resolves its own debt — by agent", fontweight="bold", fontsize=11)
+    ax.set_ylabel("% of the agent's solved debt")
+    ax.set_xlabel("distinct AI commits that edited the debt's comment line before resolution")
+    ax.legend(fontsize=9, frameon=False)
+    fig.text(0.5, 0.005, "claude n=3 solved — indicative only;  '0' is mostly squash-merged fixes, not one-shot",
+             ha="center", fontsize=7.5, color="#888", style="italic")
+    save(fig, fname)
+
+
+def revisit_triggers_by_agent(fname):
+    """Conversation revisit circumstances, faceted per agent (% of the agent's revisits)."""
+    cnt = {a: Counter() for a in AGENTS}
+    with open(HERE / "agent_notice_revisit.csv") as f:
+        for row in csv.DictReader(f):
+            if row["act"] == "revisit" and row["bucket"] == "dialogue":
+                a = ag.classify_actor(row["agent"])[1]
+                if a in cnt:
+                    cnt[a][row["trigger"]] += 1
+    tab, ns = _apply_proj(cnt)
+    keys = ORDER[::-1]
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.4), sharex=True)
+    for ax, a in zip(axes, AGENTS):
+        tot = ns[a] or 1
+        vals = [100 * tab[a].get(o, 0) / tot for o in keys]
+        ax.barh([LABELS[o] for o in keys], vals, color=AGENT_COLORS[a])
+        for i, v in enumerate(vals):
+            if v > 0:
+                ax.text(v + 1, i, f"{v:.0f}%", va="center", fontsize=8)
+        n = round(ns[a])
+        ax.set_title(f"{a}  (n={n})" + ("  *small*" if n < 30 else ""), fontweight="bold", fontsize=11)
+        ax.set_xlim(0, 75); ax.set_xticks([])
+        for s in ("top", "right", "bottom"):
+            ax.spines[s].set_visible(False)
+        if a != AGENTS[0]:
+            ax.set_yticklabels([])
+    fig.suptitle("AI revisiting (removing) its own debt — circumstances, by agent", fontweight="bold", fontsize=13)
+    save(fig, fname)
+
+
+def agent_doc_overall(fname):
+    _agent_doc_bar(fname, "overall", "How often each agent documents technical debt (overall)")
+
+
+def agent_doc_ownself(fname):
+    _agent_doc_bar(fname, "spont", "How often each agent documents technical debt on its own")
+
+
 def run():
     notice = load_dialogue("notice")
     revisit = load_dialogue("revisit")
-    code = load_code(independent=True)
+    code = _proj_spont_counter(load_code(independent=True))  # projection: dev-elicited pathway grows
 
     trigger_bar(notice, "AI noticing its own debt in conversation — circumstances", "adm_notice_triggers.png")
     trigger_bar(revisit, "AI revisiting (removing) its own debt — circumstances", "adm_revisit_triggers.png")
@@ -298,8 +789,25 @@ def run():
     type_mix("adm_type_mix.png")
     type_elicited("adm_type_elicited.png")
     type_subconcerns("adm_type_subconcerns.png")
+    agent_type_mix("adm_agent_type_mix.png")
+    agent_doc_rate("adm_agent_doc_rate.png")
+    agent_subconcerns("adm_agent_subconcerns.png")
+    agent_both_channels("adm_agent_both_channels.png")
+    agent_channel_split("adm_agent_channel_split.png")
+    agent_concern_profile("adm_agent_concern_profile.png")
+    agent_concern_signatures("adm_agent_concern_signatures.png")
+    agent_doc_overall("adm_agent_doc_overall.png")
+    agent_doc_ownself("adm_agent_doc_ownself.png")
+    revisit_before_solve_by_agent("adm_revisit_before_solve_by_agent.png")
+    revisit_triggers_by_agent("adm_revisit_triggers_by_agent.png")
     print("done ->", OUT)
 
 
 if __name__ == "__main__":
-    run()
+    import sys as _sys
+    run()                                  # real results   -> adm_*.png
+    if "--no-proj" not in _sys.argv:
+        import graph_admissions as _self   # rebind the module global so all fns see it
+        _self.PROJECTED = True
+        _self.run()                        # projected twins -> proj_adm_*.png
+        print("projected set done (proj_adm_*.png)")
