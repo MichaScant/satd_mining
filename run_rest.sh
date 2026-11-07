@@ -52,6 +52,10 @@ du -sh data/clones 2>/dev/null | tee -a "$LOG" || true
 run_stage "stage5_track"           python3 -u stage5_track.py
 # stamp agent attribution + fill revisit counts on already-tracked instances (from events)
 run_stage "backfill_attribution"   python3 -u backfill_attribution.py
+# backfill the TRUE commit date (git committer date ~ when the debt entered the PR) for the
+# agent code SATD commits, so the elicited-vs-spontaneous timing uses real PR-visible dates.
+# No-op without GITHUB_TOKEN (prints a notice); safe/resumable.
+run_stage "fetch_commit_dates"     python3 -u fetch_commit_dates.py
 # text report + CSV + graphs
 run_stage "report"                 python3 -u report.py
 # conversational notice/revisit analysis + its graphs (uses the full conversation data)
@@ -60,7 +64,7 @@ run_stage "graphs"                 python3 -u graph_admissions.py
 
 echo ""                                 | tee -a "$LOG"
 echo "===== [$(ts)] SUMMARY ====="       | tee -a "$LOG"
-for s in stage3_satd_scan stage3c_reviewer_flags stage5_track backfill_attribution report notice_revisit graphs; do
+for s in stage3_satd_scan stage3c_reviewer_flags stage5_track backfill_attribution fetch_commit_dates report notice_revisit graphs; do
   printf '  %-24s %s\n' "$s" "${STATUS[$s]:-SKIPPED}" | tee -a "$LOG"
 done
 echo "full log: $(pwd)/$LOG" | tee -a "$LOG"

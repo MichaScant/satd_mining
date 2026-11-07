@@ -136,7 +136,7 @@ def within_pr_touches(conn, inst, snippet) -> bool:
     intro_sha = inst["introducing_sha"]
     pr_author = inst["pr_author_type"] if "pr_author_type" in inst.keys() else None
     rows = conn.execute(
-        "SELECT c.sha, c.authored_at, fc.patch_ref FROM commits c "
+        "SELECT c.sha, c.authored_at, c.author_class, fc.patch_ref FROM commits c "
         "JOIN prs p ON p.id = c.pr_id "
         "JOIN file_changes fc ON fc.sha = c.sha AND fc.path = ? "
         "WHERE p.repo = ? AND p.pr_number = ? ORDER BY c.authored_at",
@@ -144,6 +144,7 @@ def within_pr_touches(conn, inst, snippet) -> bool:
     ).fetchall()
     snip = snippet.lower()
     removed = False
+    n_file = n_near = 0   # AI edits to the file (any line) / within diff-context of the SATD, before resolution
     seen_intro = intro_sha is None
     for r in rows:
         if r["sha"] == intro_sha:
@@ -154,7 +155,16 @@ def within_pr_touches(conn, inst, snippet) -> bool:
         pf = config.DATA_DIR / r["patch_ref"]
         if not pf.exists():
             continue
-        lines = pf.read_text(errors="replace").splitlines()
+        text = pf.read_text(errors="replace")
+        lines = text.splitlines()
+        # a commit that touched the file counts as an AI file-edit (the PR is coding-agent authored;
+        # author_class=='human' excludes human co-commits). "near" = the SATD comment appears in this
+        # commit's diff at all, so the change is within the diff-context window of the SATD location.
+        is_ai = ((r["author_class"] or pr_author) or "") != "human"
+        if is_ai:
+            n_file += 1
+            if snip in text.lower():
+                n_near += 1
         rem = any(l.startswith("-") and snip in l.lower() for l in lines)
         add = any(l.startswith("+") and snip in l.lower() for l in lines)
         if rem and not add:
@@ -166,6 +176,7 @@ def within_pr_touches(conn, inst, snippet) -> bool:
             continue  # touched the file but not the comment line
         store.add_satd_event(conn, iid, r["sha"], kind, event_pr=inst["introducing_pr"],
                              ts=r["authored_at"], scope="within_pr", actor_class=pr_author)
+    store.update_satd_status(conn, iid, n_ai_file_edits=n_file, n_ai_near_edits=n_near)
     return removed
 
 
@@ -285,6 +296,7 @@ def track_instance(conn, inst, clone):
 
 def run(limit=None):
     conn = store.connect()
+    store.init_db(conn)   # ensure new tracking columns (n_ai_file_edits/n_ai_near_edits) exist
     rows = conn.execute(
         "SELECT i.*, p.repo_url, p.author_type AS pr_author_type FROM satd_instances i "
         "LEFT JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "

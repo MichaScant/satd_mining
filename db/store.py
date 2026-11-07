@@ -43,8 +43,10 @@ def init_db(conn=None):
         ("satd_instances", "agent_name", "TEXT"),           # copilot|devin|claude|...
         ("satd_instances", "committed_by", "TEXT"),         # agent|github_merge|human
         # AI revisiting the debt before it's resolved
-        ("satd_instances", "n_ai_revisits", "INTEGER"),
+        ("satd_instances", "n_ai_revisits", "INTEGER"),       # AI commits touching the exact SATD line
         ("satd_instances", "n_ai_revisit_prs", "INTEGER"),
+        ("satd_instances", "n_ai_file_edits", "INTEGER"),     # AI commits touching the SATD's file (any line)
+        ("satd_instances", "n_ai_near_edits", "INTEGER"),     # AI commits editing within diff-context of the SATD
         # exact code blocks: where AI introduced it, and where it was fixed
         ("satd_instances", "intro_patch_ref", "TEXT"),      # archived introducing patch on disk
         ("satd_instances", "intro_hunk", "TEXT"),           # diff hunk that added the SATD
@@ -58,6 +60,8 @@ def init_db(conn=None):
         ("satd_instances", "first_pointer_ts", "TEXT"),
         ("satd_instances", "resolver_ai_commits", "INTEGER"),
         ("satd_instances", "resolver_ai_discussion", "INTEGER"),
+        # true commit (git committer) date ~ when the code-comment debt entered the PR
+        ("commits", "committed_at", "TEXT"),
         ("reviewer_flags", "actor_type", "TEXT"),
         ("reviewer_flags", "file_path", "TEXT"),
         ("reviewer_flags", "ts", "TEXT"),

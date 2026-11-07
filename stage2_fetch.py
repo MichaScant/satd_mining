@@ -102,7 +102,9 @@ def fetch_pr(conn, repo, pr_number, pr_id, pr_author, pr_author_type):
         committer_login = (cm.get("committer") or {}).get("login")
         message = (cm.get("commit") or {}).get("message", "")
         co_authors = CO_AUTHOR_RE.findall(message)
-        authored_at = (cm.get("commit") or {}).get("author", {}).get("date")
+        _commit = cm.get("commit") or {}
+        authored_at = (_commit.get("author") or {}).get("date")
+        committed_at = (_commit.get("committer") or {}).get("date")  # true commit time ~ PR-visible
 
         sc2, detail = _get(f"{config.GITHUB_API}/repos/{repo}/commits/{sha}")
         if detail is None:
@@ -114,6 +116,7 @@ def fetch_pr(conn, repo, pr_number, pr_id, pr_author, pr_author_type):
         store.upsert_commit(
             conn, sha, pr_id, author_login=author_login, committer_login=committer_login,
             co_authors=[n.strip() for n, _ in co_authors], authored_at=authored_at,
+            committed_at=committed_at,
             phase=_phase(authored_at, pr_author, author_login, first_review, first_cr),
             author_class=aclass, author_conflict=conflict,
         )
@@ -139,6 +142,7 @@ def run(limit=None):
     if not config.GITHUB_TOKEN:
         print("WARNING: no GITHUB_TOKEN set — unauthenticated requests are capped at 60/hr.")
     conn = store.connect()
+    store.init_db(conn)   # ensure schema + migrations (e.g. commits.committed_at) exist before upserts
     prs = conn.execute("SELECT id, repo, pr_number, author, author_type FROM prs ORDER BY id").fetchall()
     todo = [p for p in prs if not store.already_fetched(conn, p["repo"], p["pr_number"])]
     if limit:

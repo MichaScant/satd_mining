@@ -16,6 +16,7 @@ import re
 import sqlite3
 import sys
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -23,6 +24,18 @@ import agents
 import satd_detect as sd
 
 HERE = Path(__file__).resolve().parent
+
+
+def _days(a, b):
+    """Whole-day gap between two ISO-8601 Z timestamps (b - a); None if either missing."""
+    if not a or not b:
+        return None
+    try:
+        da = datetime.fromisoformat(a.replace("Z", "+00:00"))
+        db = datetime.fromisoformat(b.replace("Z", "+00:00"))
+        return round((db - da).total_seconds() / 86400, 2)
+    except Exception:
+        return None
 
 ERR = re.compile(r"\b(doesn'?t work|not working|broken|fail\w*|\berror\b|\bbug\b|\bwrong\b|incorrect|"
     r"crash\w*|exception|not right|unexpected|regression|typo|not correct|misses)\b", re.I)
@@ -47,17 +60,25 @@ def _classify(pd, pe, pcr, pc, ph):
 
 
 def trigger(tl, i):
-    pd = pe = pc = pcr = ph = False
+    """Return (circumstance_label, triggered_at) — triggered_at is the timestamp of the FIRST
+    developer turn matching the winning category (None if spontaneous), so we can measure the
+    latency between the dev raising it and the LLM noticing it. tl rows carry ts at index 6."""
+    t_named = t_err = t_cr = t_concern = t_human = None
     for j in range(i):
-        kj, tj, rkj = tl[j][0], tl[j][1], tl[j][3]
-        if rkj == "changes_requested":
-            pcr = True
+        kj, tj, rkj, tsj = tl[j][0], tl[j][1], tl[j][3], tl[j][6]
+        if rkj == "changes_requested" and t_cr is None:
+            t_cr = tsj
         if kj == "human":
-            ph = True
-            if has_debt(tj): pd = True
-            if ERR.search(tj): pe = True
-            if CONCERN.search(tj): pc = True
-    return _classify(pd, pe, pcr, pc, ph)
+            if t_human is None: t_human = tsj
+            if has_debt(tj) and t_named is None: t_named = tsj
+            if ERR.search(tj) and t_err is None: t_err = tsj
+            if CONCERN.search(tj) and t_concern is None: t_concern = tsj
+    if t_named is not None: return "dev named debt", t_named
+    if t_err is not None: return "dev alluded to error", t_err
+    if t_cr is not None: return "changes_requested", t_cr
+    if t_concern is not None: return "dev raised concern/question", t_concern
+    if t_human is not None: return "neutral dev comment before", t_human
+    return "SPONTANEOUS (no dev signal)", None
 
 
 def code_trigger(conn, pr_id, authored_at):
@@ -112,7 +133,8 @@ def run():
     rows = []
     for pr in agent_prs:
         evs = [dict(r) for r in conn.execute(
-            "SELECT e.actor actor, e.body body, e.kind kind, p.author author, p.repo repo, p.pr_number prn "
+            "SELECT e.actor actor, e.body body, e.kind kind, e.ts ts, e.file_path file_path, "
+            "p.author author, p.repo repo, p.pr_number prn "
             "FROM review_events e JOIN prs p ON p.id=e.pr_id "
             "WHERE e.pr_id=? AND e.body IS NOT NULL ORDER BY e.ts, e.id", (pr,))]
         if not evs:
@@ -120,22 +142,36 @@ def run():
         author = evs[0]["author"]
         if agents.classify_actor(author)[0] != "coding_agent":
             continue
+        # tl row: (actor_class, text, actor, kind, repo, prn, ts, file_path)  — ts at index 6
         tl = [(agents.classify_actor(e["actor"])[0], sd.strip_code(e["body"] or ""), e["actor"],
-               e["kind"], e["repo"], e["prn"]) for e in evs]
-        for i, (k, txt, actor, rk, repo, prn) in enumerate(tl):
+               e["kind"], e["repo"], e["prn"], e["ts"], e["file_path"]) for e in evs]
+        for i, (k, txt, actor, rk, repo, prn, ts, fpath) in enumerate(tl):
             if actor != author:
                 continue
             bucket = "pr_desc" if rk == "created" else "dialogue"
             adm = sd.is_self_admission(txt)
             rem = sd.is_debt_removal(txt)
+            if not (adm or rem):
+                continue
+            # messages exchanged BEFORE this turn (how much back-and-forth preceded noticing)
+            prior = tl[:i]
+            n_before = len(prior)
+            n_dev_before = sum(1 for p in prior if p[0] == "human")
+            n_ai_before = sum(1 for p in prior if p[0] == "coding_agent")
+            counts = {"n_msgs_before": n_before, "n_dev_msgs_before": n_dev_before,
+                      "n_ai_msgs_before": n_ai_before}
             if adm:
-                trg = trigger(tl, i); notice[bucket][trg] += 1
-                rows.append({"act": "notice", "bucket": bucket, "trigger": trg,
-                             "repo": repo, "pr": prn, "agent": actor, "text": adm})
+                trg, trg_at = trigger(tl, i); notice[bucket][trg] += 1
+                rows.append({"act": "notice", "bucket": bucket, "trigger": trg, "channel": "conversation",
+                             "repo": repo, "pr": prn, "agent": actor, "file_path": fpath,
+                             "noticed_at": ts, "triggered_at": trg_at, "latency_days": _days(trg_at, ts),
+                             **counts, "text": adm})
             if rem:
-                trg = trigger(tl, i); revisit[bucket][trg] += 1
-                rows.append({"act": "revisit", "bucket": bucket, "trigger": trg,
-                             "repo": repo, "pr": prn, "agent": actor, "text": rem})
+                trg, trg_at = trigger(tl, i); revisit[bucket][trg] += 1
+                rows.append({"act": "revisit", "bucket": bucket, "trigger": trg, "channel": "conversation",
+                             "repo": repo, "pr": prn, "agent": actor, "file_path": fpath,
+                             "noticed_at": ts, "triggered_at": trg_at, "latency_days": _days(trg_at, ts),
+                             **counts, "text": rem})
 
     # code channel (phase)
     code = {r["ph"]: r["n"] for r in conn.execute(
@@ -219,7 +255,9 @@ def run():
 
     out = HERE / "agent_notice_revisit.csv"
     with open(out, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=["act", "bucket", "trigger", "repo", "pr", "agent", "text"])
+        w = csv.DictWriter(f, fieldnames=["act", "bucket", "trigger", "channel", "repo", "pr", "agent",
+                                          "file_path", "noticed_at", "triggered_at", "latency_days",
+                                          "n_msgs_before", "n_dev_msgs_before", "n_ai_msgs_before", "text"])
         w.writeheader(); w.writerows(rows)
     print(f"\n{len(rows)} rows (notice + revisit, with trigger) -> {out.name}")
     conn.close()
