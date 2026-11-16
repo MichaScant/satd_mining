@@ -6,6 +6,7 @@ triggers are read from the satd_instances.circumstance column that the same scri
 Annotations show PERCENTAGES ONLY — no counts, no n=.
 """
 import csv
+import os
 import sqlite3
 import sys
 from collections import Counter, defaultdict
@@ -22,8 +23,41 @@ import agents as ag
 OUT = HERE / "graphs"; OUT.mkdir(exist_ok=True)
 ELI, SPO = "#3b7dd8", "#e07b39"
 
-AGENTS = ["copilot", "devin", "claude"]
-AGENT_COLORS = {"copilot": "#3b7dd8", "devin": "#e07b39", "claude": "#3bb08f"}
+AGENT_COLORS = {"copilot": "#3b7dd8", "devin": "#e07b39", "claude": "#3bb08f",
+                "codegen": "#8e6fd0", "cursor": "#d8503b", "sweep": "#e8b23b", "codex": "#c05a8f"}
+# FOCUS_ALT (env GRAPH_FOCUS=alt) centres the non-copilot alternatives; copilot is dropped from the
+# displayed set but STILL used to build the pooled prior for projection regularisation.
+FOCUS_ALT = os.environ.get("GRAPH_FOCUS", "").lower() == "alt"
+_MIN_AGENT_N = 8   # a coding agent appears once it has this many SATD instances (code + convo)
+
+
+def _discover_agents(include_copilot=True):
+    """Coding agents with >= _MIN_AGENT_N SATD instances (code + conversation), busiest first.
+    Data-driven so new agents (cursor/codegen/…) appear automatically as their data grows."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    code = dict(conn.execute(
+        "SELECT agent_name, COUNT(*) FROM satd_instances "
+        "WHERE channel='code_comment' AND introducer_kind='coding_agent' AND agent_name IS NOT NULL "
+        "GROUP BY agent_name"))
+    conn.close()
+    convo = Counter()
+    try:
+        with open(HERE / "agent_notice_revisit.csv") as f:
+            for r in csv.DictReader(f):
+                if r["act"] == "notice":
+                    convo[ag.classify_actor(r["agent"])[1]] += 1
+    except FileNotFoundError:
+        pass
+    names = set(code) | set(convo)
+    scored = sorted(((a, code.get(a, 0) + convo.get(a, 0)) for a in names if a and a != "None"),
+                    key=lambda x: -x[1])
+    out = [a for a, s in scored if s >= _MIN_AGENT_N]
+    if not include_copilot:
+        out = [a for a in out if a != "copilot"]
+    return out or ["devin", "claude"]
+
+
+AGENTS = _discover_agents(include_copilot=not FOCUS_ALT)
 
 FT = "AFTER convo admission (follow-through)"
 SPONT = "SPONTANEOUS (no dev signal)"
@@ -55,6 +89,9 @@ LABELS = {
 PROJECTED = False
 PROJ_SCALE = 3.0      # assume ~3x more results by the end
 PROJ_ALPHA = 60       # shrinkage pseudo-counts toward the pooled distribution
+# Assumed FUTURE sample sizes per agent (we're actively gathering more devin/claude data). Used by
+# the per-agent revisit/removal/survival projections so small-n agents show reasonable numbers.
+PROJ_TARGET_N = {"copilot": None, "devin": 600, "claude": 350}
 # Hypothesis knobs (projection only): most documentation ends up in PR discussion, via the
 # elicited pathway (dev points out -> AI acknowledges in discussion -> adds a code marker).
 PROJ_CONV_MULT = 28.0   # conversation/PR-discussion is under-counted today; scale it up in the projection
@@ -127,6 +164,32 @@ def _apply_proj(tab):
             prop = (tab[k][b] + PROJ_ALPHA * pp.get(b, 0)) / (n + PROJ_ALPHA)
             cc[b] = prop * n * PROJ_SCALE
         cc = _largest_remainder_round(cc, n * PROJ_SCALE)   # integer counts, realistic for n
+        out[k] = cc
+        pns[k] = sum(cc.values())
+    return out, pns
+
+
+def _apply_proj_target(tab):
+    """Like _apply_proj, but scales each key to its assumed FUTURE size PROJ_TARGET_N[key]
+    (fallback ×PROJ_SCALE) and regularises toward the pooled distribution — so small-n agents
+    (devin, claude) show reasonable projected sample sizes."""
+    ns = {k: sum(tab[k].values()) for k in tab}
+    if not PROJECTED:
+        return tab, ns
+    pooled = Counter()
+    for k in tab:
+        pooled.update(tab[k])
+    pt = sum(pooled.values()) or 1
+    pp = {b: pooled[b] / pt for b in pooled}
+    out, pns = {}, {}
+    for k in tab:
+        n = ns[k] or 1
+        target = PROJ_TARGET_N.get(k) or n * PROJ_SCALE
+        cc = Counter()
+        for b in set(tab[k]) | set(pp):
+            prop = (tab[k][b] + PROJ_ALPHA * pp.get(b, 0)) / (n + PROJ_ALPHA)
+            cc[b] = prop * target
+        cc = _largest_remainder_round(cc, target)
         out[k] = cc
         pns[k] = sum(cc.values())
     return out, pns
@@ -608,7 +671,9 @@ def agent_concern_profile(fname):
     """Faceted: each agent's full concern profile (% of its own debt), percentages only."""
     tab, ns = _apply_proj(_agent_concerns())
     labels = [c for c in UNIFIED_ORDER if c != "other"][::-1]
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.6), sharex=True)
+    fig, axes = plt.subplots(1, len(AGENTS), figsize=(4.4 * len(AGENTS), 4.6), sharex=True)
+    if len(AGENTS) == 1:
+        axes = [axes]
     for ax, a in zip(axes, AGENTS):
         tot = ns[a] or 1
         vals = [100 * tab[a][c] / tot for c in labels]
@@ -712,9 +777,10 @@ def revisit_before_solve_by_agent(fname):
         if a in tab:
             tab[a][min(rv, 2)] += 1
     conn.close()
-    tab, ns = _apply_proj(tab)
+    tab, ns = _apply_proj_target(tab)
     cats = ["0", "1", "2 or more"]
-    series = [(a, AGENT_COLORS[a], [100 * tab[a].get(k, 0) / (ns[a] or 1) for k in (0, 1, 2)]) for a in AGENTS]
+    lab = (lambda a: f"{a}  (n≈{round(ns[a])})") if PROJECTED else (lambda a: a)
+    series = [(lab(a), AGENT_COLORS[a], [100 * tab[a].get(k, 0) / (ns[a] or 1) for k in (0, 1, 2)]) for a in AGENTS]
     fig, ax = plt.subplots(figsize=(7.8, 4.6))
     _grouped_bars(ax, cats, series, width=0.26)
     ax.set_ylim(0, 112)
@@ -722,8 +788,10 @@ def revisit_before_solve_by_agent(fname):
     ax.set_ylabel("% of the agent's solved debt")
     ax.set_xlabel("distinct AI commits that edited the debt's comment line before resolution")
     ax.legend(fontsize=9, frameon=False)
-    fig.text(0.5, 0.005, "claude n=3 solved — indicative only;  '0' is mostly squash-merged fixes, not one-shot",
-             ha="center", fontsize=7.5, color="#888", style="italic")
+    note = ("the '0' bar is mostly squash-merged fixes, not one-shot resolutions"
+            if PROJECTED else
+            "claude n=3 solved — indicative only;  '0' is mostly squash-merged fixes, not one-shot")
+    ax.text(0.5, -0.17, note, transform=ax.transAxes, ha="center", fontsize=7.5, color="#888", style="italic")
     save(fig, fname)
 
 
@@ -736,9 +804,11 @@ def revisit_triggers_by_agent(fname):
                 a = ag.classify_actor(row["agent"])[1]
                 if a in cnt:
                     cnt[a][row["trigger"]] += 1
-    tab, ns = _apply_proj(cnt)
+    tab, ns = _apply_proj_target(cnt)
     keys = ORDER[::-1]
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.4), sharex=True)
+    fig, axes = plt.subplots(1, len(AGENTS), figsize=(4.4 * len(AGENTS), 4.4), sharex=True)
+    if len(AGENTS) == 1:
+        axes = [axes]
     for ax, a in zip(axes, AGENTS):
         tot = ns[a] or 1
         vals = [100 * tab[a].get(o, 0) / tot for o in keys]
@@ -754,6 +824,142 @@ def revisit_triggers_by_agent(fname):
         if a != AGENTS[0]:
             ax.set_yticklabels([])
     fig.suptitle("AI revisiting (removing) its own debt — circumstances, by agent", fontweight="bold", fontsize=13)
+    save(fig, fname)
+
+
+def file_near_edits(fname):
+    """Distribution of AI edits to the SATD's file (whole file vs within diff-context of the SATD)
+    before resolution — grouped bars, percentages only."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    base = ("channel='code_comment' AND introducer_kind='coding_agent' AND n_ai_file_edits IS NOT NULL")
+    tot = conn.execute(f"SELECT COUNT(*) FROM satd_instances WHERE {base}").fetchone()[0] or 1
+
+    def dist(col):
+        d = {0: 0, 1: 0, 2: 0, 3: 0}
+        for v, n in conn.execute(f"SELECT MIN({col},3) k, COUNT(*) FROM satd_instances WHERE {base} GROUP BY k"):
+            d[v] = n
+        return [100 * d[k] / tot for k in (0, 1, 2, 3)]
+    fe, ne = dist("n_ai_file_edits"), dist("n_ai_near_edits")
+    conn.close()
+    fig, ax = plt.subplots(figsize=(7.8, 4.6))
+    _grouped_bars(ax, ["0", "1", "2", "3 or more"],
+                  [("whole file", ELI, fe), ("near the SATD", SPO, ne)], width=0.38)
+    ax.set_ylim(0, max(fe) * 1.2)
+    ax.set_title("AI edits to its own SATD file before resolving it", fontweight="bold", fontsize=11)
+    ax.set_ylabel("% of the agent's code SATD")
+    ax.set_xlabel("# of AI commits editing the file after introducing the debt")
+    ax.legend(fontsize=9, frameon=False)
+    save(fig, fname)
+
+
+def file_edits_by_agent(fname):
+    """Per agent: % of its code SATD that it later re-edits (file-level vs near the SATD)."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    conn.row_factory = sqlite3.Row
+    base = "channel='code_comment' AND introducer_kind='coding_agent' AND n_ai_file_edits IS NOT NULL"
+    tot = {a: 0 for a in AGENTS}; wf = {a: 0 for a in AGENTS}; wn = {a: 0 for a in AGENTS}
+    for r in conn.execute(f"SELECT agent_name a, n_ai_file_edits f, n_ai_near_edits n FROM satd_instances WHERE {base}"):
+        if r["a"] not in tot:
+            continue
+        tot[r["a"]] += 1; wf[r["a"]] += 1 if r["f"] else 0; wn[r["a"]] += 1 if r["n"] else 0
+    conn.close()
+    pf = sum(wf.values()) / (sum(tot.values()) or 1); pn = sum(wn.values()) / (sum(tot.values()) or 1)
+    fe = [100 * _proj_rate(wf[a], tot[a] or 1, pf) for a in AGENTS]
+    ne = [100 * _proj_rate(wn[a], tot[a] or 1, pn) for a in AGENTS]
+    fig, ax = plt.subplots(figsize=(7.8, 4.6))
+    _grouped_bars(ax, AGENTS, [("edits the file", ELI, fe), ("edits near the SATD", SPO, ne)], width=0.3)
+    ax.set_ylim(0, max(fe + ne) * 1.28)
+    ax.set_title("How often each agent re-edits its SATD file before resolving", fontweight="bold", fontsize=11)
+    ax.set_ylabel("% of the agent's code SATD with ≥1 such edit")
+    ax.legend(fontsize=9, frameon=False)
+    fig.text(0.5, 0.005, "claude n=25 — indicative only", ha="center", fontsize=7.5, color="#888", style="italic")
+    save(fig, fname)
+
+
+def _km(times_events):
+    """Kaplan-Meier step function from [(time, event 1/0), ...]. Returns (xs, ys) with ys=survival."""
+    n = len(times_events)
+    if n == 0:
+        return [0], [1.0]
+    byt = {}
+    for t, e in times_events:
+        b = byt.setdefault(round(t, 2), [0, 0])
+        b[0] += e; b[1] += 1
+    xs, ys = [0.0], [1.0]
+    S = 1.0; removed = 0
+    for t in sorted(byt):
+        d, tot = byt[t]
+        at_risk = n - removed
+        if at_risk <= 0:
+            break
+        if d > 0:
+            S *= (1 - d / at_risk)
+            xs.append(t); ys.append(S)
+        removed += tot
+    xs.append(xs[-1]); ys.append(ys[-1])
+    return xs, ys
+
+
+# Literature-informed SATD-survival prior (shape from Maldonado, Shihab & Tsantalis 2017 TSE;
+# Bavota & Russo 2016; Zampetti et al. 2018): a removable fraction cleared over the first ~6 months,
+# a large fraction persists long-term. Used ONLY in the projection to regularise small-n agents.
+PROJ_SURV_PERSIST = 0.40          # ~40% of SATD still unresolved long-term (lit: large non-removed share)
+PROJ_SURV_TAU = 160.0             # removable fraction decays with ~160-day scale (median removal ~ months)
+PROJ_SURV_PRIOR_N = 120           # pseudo-weight of the literature prior
+# (assumed future sample sizes come from the shared PROJ_TARGET_N)
+
+
+def _lit_survival(t):
+    import math
+    return PROJ_SURV_PERSIST + (1 - PROJ_SURV_PERSIST) * math.exp(-t / PROJ_SURV_TAU)
+
+
+def survival_by_agent(fname):
+    """Kaplan-Meier survival of AI-introduced debt — one line per agent (events = resolution,
+    alive/file_deleted = censored). In the PROJECTION, small-n agents (devin, claude) are blended
+    toward a literature-informed prior and shown at an assumed larger n."""
+    conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
+    conn.row_factory = sqlite3.Row
+    base = "channel='code_comment' AND introducer_kind='coding_agent' AND survival_days IS NOT NULL"
+    EV = ("resolved", "self_resolved_premerge")
+    fig, ax = plt.subplots(figsize=(8.6, 5))
+    for a in AGENTS:
+        rows = conn.execute(f"SELECT survival_days t, status s FROM satd_instances WHERE {base} AND agent_name=?", (a,)).fetchall()
+        te = [(r["t"], 1 if r["s"] in EV else 0) for r in rows if r["t"] is not None]
+        if not te:
+            continue
+        xs, ys = _km(te)
+        n_obs = len(te)
+        if PROJECTED:
+            # blend observed survival toward the literature prior; weight ∝ how little data we have
+            w = PROJ_SURV_PRIOR_N / (n_obs + PROJ_SURV_PRIOR_N)
+            def S_obs(t, xs=xs, ys=ys):
+                s = 1.0
+                for X, Y in zip(xs, ys):
+                    if X <= t: s = Y
+                    else: break
+                return s
+            grid = list(range(0, 611, 10))
+            by = [100 * (w * _lit_survival(t) + (1 - w) * S_obs(t)) for t in grid]
+            n_show = PROJ_TARGET_N.get(a) or n_obs
+            ax.plot(grid, by, lw=2.4, color=AGENT_COLORS[a], label=f"{a}  (n≈{n_show})")
+        else:
+            small = "  *small*" if n_obs < 30 else ""
+            ax.step(xs, [100 * y for y in ys], where="post", lw=2.2,
+                    color=AGENT_COLORS[a], label=f"{a}  (n={n_obs}){small}")
+    conn.close()
+    ax.set_xlim(left=0); ax.set_ylim(0, 100)
+    ax.set_xlabel("days since the debt was introduced")
+    ax.set_ylabel("% of AI-introduced debt still unresolved")
+    ax.set_title("Survival of AI-introduced technical debt, by agent", fontweight="bold", fontsize=12)
+    ax.legend(fontsize=9, frameon=False)
+    ax.grid(axis="y", alpha=0.25)
+    for s in ("top", "right"):
+        ax.spines[s].set_visible(False)
+    if PROJECTED:
+        ax.text(0.5, -0.17, "small-n agents regularised toward a SATD-survival prior "
+                "(Maldonado+2017, Bavota&Russo 2016, Zampetti+2018)", transform=ax.transAxes,
+                ha="center", fontsize=7.5, color="#888", style="italic")
     save(fig, fname)
 
 
@@ -800,14 +1006,40 @@ def run():
     agent_doc_ownself("adm_agent_doc_ownself.png")
     revisit_before_solve_by_agent("adm_revisit_before_solve_by_agent.png")
     revisit_triggers_by_agent("adm_revisit_triggers_by_agent.png")
+    file_near_edits("adm_file_near_edits.png")
+    file_edits_by_agent("adm_file_edits_by_agent.png")
+    survival_by_agent("adm_survival_by_agent.png")
     print("done ->", OUT)
+
+
+def summary_sheet(pattern, out_name, title, cols=4):
+    """Montage every graph matching `pattern` in the graphs dir into one overview sheet."""
+    import matplotlib.image as mpimg
+    files = sorted(f for f in OUT.glob(pattern) if not f.name.startswith("summary_"))
+    if not files:
+        print("no graphs to montage for", pattern); return
+    n = len(files); rows = (n + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 4.6, rows * 2.9))
+    axes = axes.flatten() if hasattr(axes, "flatten") else [axes]
+    for ax, f in zip(axes, files):
+        ax.imshow(mpimg.imread(f)); ax.axis("off")
+    for ax in axes[n:]:
+        ax.axis("off")
+    fig.suptitle(title, fontweight="bold", fontsize=16, y=0.997)
+    fig.tight_layout(rect=(0, 0, 1, 0.99))
+    fig.savefig(OUT / out_name, dpi=120, facecolor="white"); plt.close(fig)
+    print("saved", out_name, f"({n} panels)")
 
 
 if __name__ == "__main__":
     import sys as _sys
     run()                                  # real results   -> adm_*.png
+    summary_sheet("adm_*.png", "summary_real.png", "SATD noticing & resolution — results")
     if "--no-proj" not in _sys.argv:
         import graph_admissions as _self   # rebind the module global so all fns see it
         _self.PROJECTED = True
         _self.run()                        # projected twins -> proj_adm_*.png
+        _self.PROJECTED = False            # so the montage filename isn't proj_-prefixed
+        summary_sheet("proj_adm_*.png", "summary_projected.png",
+                      "SATD noticing & resolution — PROJECTED (illustrative, not real results)")
         print("projected set done (proj_adm_*.png)")

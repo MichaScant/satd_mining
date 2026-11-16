@@ -62,6 +62,21 @@ def init_db(conn=None):
         ("satd_instances", "resolver_ai_discussion", "INTEGER"),
         # true commit (git committer) date ~ when the code-comment debt entered the PR
         ("commits", "committed_at", "TEXT"),
+        # full capture so we never have to refetch (message is where agent/version info lives)
+        ("commits", "message", "TEXT"),
+        ("commits", "author_name", "TEXT"),
+        ("commits", "author_email", "TEXT"),
+        ("commits", "committer_name", "TEXT"),
+        ("commits", "committer_email", "TEXT"),
+        ("commits", "additions", "INTEGER"),
+        ("commits", "deletions", "INTEGER"),
+        ("commits", "total_changes", "INTEGER"),
+        ("commits", "verified", "INTEGER"),
+        ("commits", "agent_version", "TEXT"),      # e.g. 'claude opus 4.1', 'gpt-4o' (best-effort)
+        ("file_changes", "status", "TEXT"),        # added | modified | removed | renamed
+        ("file_changes", "changes", "INTEGER"),
+        ("file_changes", "previous_filename", "TEXT"),
+        ("prs", "agent", "TEXT"),                   # AIDev's authoritative agent label (aidev cohort)
         ("reviewer_flags", "actor_type", "TEXT"),
         ("reviewer_flags", "file_path", "TEXT"),
         ("reviewer_flags", "ts", "TEXT"),
@@ -121,12 +136,14 @@ def upsert_commit(conn, sha, pr_id, **cols):
     )
 
 
-def add_file_change(conn, sha, path, patch_ref=None, additions=None, deletions=None):
+def add_file_change(conn, sha, path, patch_ref=None, additions=None, deletions=None,
+                    status=None, changes=None, previous_filename=None):
     conn.execute(
-        "INSERT INTO file_changes (sha, path, patch_ref, additions, deletions) "
-        "VALUES (?,?,?,?,?) ON CONFLICT(sha, path) DO UPDATE SET "
-        "patch_ref=excluded.patch_ref, additions=excluded.additions, deletions=excluded.deletions",
-        (sha, path, patch_ref, additions, deletions),
+        "INSERT INTO file_changes (sha, path, patch_ref, additions, deletions, status, changes, previous_filename) "
+        "VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(sha, path) DO UPDATE SET "
+        "patch_ref=excluded.patch_ref, additions=excluded.additions, deletions=excluded.deletions, "
+        "status=excluded.status, changes=excluded.changes, previous_filename=excluded.previous_filename",
+        (sha, path, patch_ref, additions, deletions, status, changes, previous_filename),
     )
 
 

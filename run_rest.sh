@@ -52,19 +52,29 @@ du -sh data/clones 2>/dev/null | tee -a "$LOG" || true
 run_stage "stage5_track"           python3 -u stage5_track.py
 # stamp agent attribution + fill revisit counts on already-tracked instances (from events)
 run_stage "backfill_attribution"   python3 -u backfill_attribution.py
+# fill n_ai_file_edits/n_ai_near_edits on instances tracked before those metrics existed (from patches)
+run_stage "backfill_file_edits"    python3 -u backfill_file_edits.py
+# stamp commits.agent_version by mining PR bodies / review comments / commit messages (no refetch)
+run_stage "backfill_agent_versions" python3 -u backfill_agent_versions.py
 # backfill the TRUE commit date (git committer date ~ when the debt entered the PR) for the
 # agent code SATD commits, so the elicited-vs-spontaneous timing uses real PR-visible dates.
 # No-op without GITHUB_TOKEN (prints a notice); safe/resumable.
 run_stage "fetch_commit_dates"     python3 -u fetch_commit_dates.py
 # text report + CSV + graphs
 run_stage "report"                 python3 -u report.py
-# conversational notice/revisit analysis + its graphs (uses the full conversation data)
+# conversational notice/revisit analysis (uses the full conversation data)
 run_stage "notice_revisit"         python3 -u analyze_reviewer_elicited_satd.py
-run_stage "graphs"                 python3 -u graph_admissions.py
+# graphs need matplotlib; if it's not on this box, skip cleanly (generate them on your Mac)
+if python3 -c "import matplotlib" 2>/dev/null; then
+  run_stage "graphs"               python3 -u graph_admissions.py
+else
+  STATUS[graphs]="SKIPPED (no matplotlib — run graph_admissions.py on your Mac)"
+  echo "===== [$(ts)] graphs SKIPPED — matplotlib not installed; graph locally =====" | tee -a "$LOG"
+fi
 
 echo ""                                 | tee -a "$LOG"
 echo "===== [$(ts)] SUMMARY ====="       | tee -a "$LOG"
-for s in stage3_satd_scan stage3c_reviewer_flags stage5_track backfill_attribution fetch_commit_dates report notice_revisit graphs; do
+for s in stage3_satd_scan stage3c_reviewer_flags stage5_track backfill_attribution backfill_file_edits backfill_agent_versions fetch_commit_dates report notice_revisit graphs; do
   printf '  %-24s %s\n' "$s" "${STATUS[$s]:-SKIPPED}" | tee -a "$LOG"
 done
 echo "full log: $(pwd)/$LOG" | tee -a "$LOG"

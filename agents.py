@@ -24,6 +24,7 @@ CODING_AGENTS = [
     ("aider",         r"aider"),
     ("openhands",     r"openhands|opendevin"),
     ("sweep",         r"\bsweep\b|sweep-ai"),
+    ("jules",         r"google-labs-jules|jules-ai|jules\[bot\]"),
     ("sourcegraph",   r"sourcegraph|\bcody\b"),
     ("gpt-engineer",  r"gpt-?engineer"),
     ("codegen",       r"\bcodegen\b"),
@@ -59,6 +60,36 @@ def classify_actor(*identities):
     if AUTOMATION_RE.search(blob):
         return "automation_bot", None
     return "human", None
+
+
+# model/version strings agents sometimes leave in commit messages, trailers, PR bodies, or
+# author names/emails. Best-effort — most commits won't carry a version, which is WHY we also
+# store the raw message/body so versions can be re-mined later without refetching.
+_VERSION_RES = [
+    re.compile(r"claude[-\s]*(?:opus|sonnet|haiku)[-\s]*\d+(?:[.\-]\d+)*", re.I),
+    re.compile(r"\b(?:opus|sonnet|haiku)[-\s]*\d+(?:[.\-]\d+)*", re.I),
+    re.compile(r"claude[-\s]*\d+(?:[.\-]\d+)*[-\s]*(?:opus|sonnet|haiku)", re.I),
+    re.compile(r"claude[-\s]*3[-.\s]*5[-\s]*(?:sonnet|haiku|opus)", re.I),
+    re.compile(r"claude[-\s]*\d(?:[.\-]\d+)+", re.I),
+    re.compile(r"\bgpt[-\s]*[0-9]+(?:\.[0-9]+)?o?(?:[-\s]*(?:mini|turbo|preview|nano))?", re.I),
+    re.compile(r"\bo[134](?:[-\s]*(?:mini|preview|pro))?\b", re.I),   # OpenAI o-series (o1/o3/o4)
+    re.compile(r"\bgemini[-\s]*[0-9]+(?:\.[0-9]+)*(?:[-\s]*(?:pro|flash|ultra))?", re.I),
+    re.compile(r"\bdeepseek[-\s]*(?:v?[0-9]+(?:\.[0-9]+)*|coder|r1)", re.I),
+    re.compile(r"\bqwen[-\s]*[0-9]+(?:\.[0-9]+)*", re.I),
+    re.compile(r"\bgrok[-\s]*[0-9]+", re.I),
+    re.compile(r"\bllama[-\s]*[0-9]+(?:\.[0-9]+)*", re.I),
+]
+
+
+def extract_agent_version(*texts):
+    """Best-effort model/version string from any text (commit message, PR body, author name…).
+    Returns a normalised string (e.g. 'claude opus 4.1', 'gpt-4o') or None."""
+    blob = " ".join(str(t) for t in texts if t)
+    for rx in _VERSION_RES:
+        m = rx.search(blob)
+        if m:
+            return re.sub(r"\s+", " ", m.group(0)).strip().lower()
+    return None
 
 
 def committed_by(author_login, committer_login):

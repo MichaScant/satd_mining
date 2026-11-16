@@ -1,5 +1,5 @@
 ==================================================================
-  AI TECHNICAL-DEBT MINING — REPORT   (/Users/michael/queens_summer_project/satd_mining/db/satd_mining.db)
+  AI TECHNICAL-DEBT MINING — REPORT   (/home/18mcs6/queens_summer_project/satd_mining/db/satd_mining.db)
 ==================================================================
 
 [1] CORPUS — 101194 SATD instances
@@ -24,28 +24,28 @@
   (commit level = SATD self-admission in code; file level = reviewer inline flag)
 
 [4] WHO RESOLVED IT  (Q1)
-  among 661 resolved: ai=19 (2.9%), human=14 (2.1%), unknown=628 (95.0%)
-  of 14 human-resolved: 1 (7.1%) had AI involvement in the fix;  avg AI commits=0.00, avg AI discussion turns=0.50
+  among 1264 resolved: ai=171 (13.5%), human=248 (19.6%), unknown=845 (66.9%)
+  of 248 human-resolved: 17 (6.9%) had AI involvement in the fix;  avg AI commits=0.00, avg AI discussion turns=0.30
 
 [5] WAS THE RESOLUTION SUCCESSFUL  (Q3)
-  untracked                  2069  (71.8%)
-  self_resolved_premerge      635  (22.0%)
-  alive                       111  (3.9%)
-  file_deleted                 41  (1.4%)
-  resolved                     26  (0.9%)
+  alive                      1293  (44.8%)
+  self_resolved_premerge      852  (29.6%)
+  resolved                    412  (14.3%)
+  file_deleted                263  (9.1%)
+  comment_deleted_only         62  (2.2%)
   untrackable                   1  (0.0%)
-  -> genuine code-change resolutions: 661   | silent comment-only deletions: 0   | success rate among resolved: 100.0%
+  -> genuine code-change resolutions: 1264   | silent comment-only deletions: 62   | success rate among resolved: 95.3%
 
 [6] SURVIVAL (AI-introduced code-comment SATD; days merge -> resolved / censored)
-  n with survival_days=354  (events=249, censored/alive=105)
-  median time-to-resolution (resolved only): 283.1 days
+  n with survival_days=2105  (events=761, censored/alive=1344)
+  median time-to-resolution (resolved only): 60.7 days
 
 [7] CODING AGENTS: DOCUMENTING & REVISITING THEIR OWN DEBT
   documents debt in CODE comments : 984/25967 agent commits = 3.8%
   documents debt in CONVERSATION  : 52164/438651 agent utterances = 11.9%
-  revisits its OWN debt           : 131/767 tracked agent-introduced = 17.1%
-    total agent revisit events=141, mean among revisited=1.08
+  revisits its OWN debt           : 617/2837 tracked agent-introduced = 21.7%
+    total agent revisit events=690, mean among revisited=1.12
   spots debt while answering developers: 4056 admissions (copilot=3463, claude=267, cursor=154, devin=151, codex=14, codegen=6, sweep=1)
 
-  graphs written to /Users/michael/queens_summer_project/satd_mining/graphs/ : satd_by_type.png, introduced_vs_resolved.png, conversational_rate.png, first_pointer.png, status_success.png, survival_km.png, resolver_of_ai_debt.png, ai_spots_debt_in_conversation.png, agent_behavior.png
+  graphs written to /home/18mcs6/queens_summer_project/satd_mining/graphs/ : (none — install matplotlib)
 ==================================================================

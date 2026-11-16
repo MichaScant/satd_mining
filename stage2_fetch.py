@@ -12,6 +12,7 @@ Run:  GITHUB_TOKEN=... python stage2_fetch.py [--limit N]
 """
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -20,6 +21,7 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import agents
 import config
 from db import store
 
@@ -100,11 +102,15 @@ def fetch_pr(conn, repo, pr_number, pr_id, pr_author, pr_author_type):
         sha = cm["sha"]
         author_login = (cm.get("author") or {}).get("login")
         committer_login = (cm.get("committer") or {}).get("login")
-        message = (cm.get("commit") or {}).get("message", "")
-        co_authors = CO_AUTHOR_RE.findall(message)
         _commit = cm.get("commit") or {}
-        authored_at = (_commit.get("author") or {}).get("date")
-        committed_at = (_commit.get("committer") or {}).get("date")  # true commit time ~ PR-visible
+        _cauthor = _commit.get("author") or {}
+        _ccommitter = _commit.get("committer") or {}
+        message = _commit.get("message", "")
+        co_authors = CO_AUTHOR_RE.findall(message)
+        authored_at = _cauthor.get("date")
+        committed_at = _ccommitter.get("date")   # true commit time ~ PR-visible
+        author_name, author_email = _cauthor.get("name"), _cauthor.get("email")
+        committer_name, committer_email = _ccommitter.get("name"), _ccommitter.get("email")
 
         sc2, detail = _get(f"{config.GITHUB_API}/repos/{repo}/commits/{sha}")
         if detail is None:
@@ -113,10 +119,21 @@ def fetch_pr(conn, repo, pr_number, pr_id, pr_author, pr_author_type):
 
         aclass, conflict = _author_class(pr_author_type, committer_login,
                                          [(n.strip(), e) for n, e in co_authors])
+        stats = detail.get("stats") or {}
+        verification = (detail.get("commit") or {}).get("verification") or {}
+        # best-effort model/version; raw message/emails are stored too so it can be re-mined later
+        agent_version = agents.extract_agent_version(message, author_name, author_email,
+                                                     committer_name, committer_email, author_login)
         store.upsert_commit(
             conn, sha, pr_id, author_login=author_login, committer_login=committer_login,
             co_authors=[n.strip() for n, _ in co_authors], authored_at=authored_at,
-            committed_at=committed_at,
+            committed_at=committed_at, message=message,
+            author_name=author_name, author_email=author_email,
+            committer_name=committer_name, committer_email=committer_email,
+            additions=stats.get("additions"), deletions=stats.get("deletions"),
+            total_changes=stats.get("total"),
+            verified=1 if verification.get("verified") else 0,
+            agent_version=agent_version,
             phase=_phase(authored_at, pr_author, author_login, first_review, first_cr),
             author_class=aclass, author_conflict=conflict,
         )
@@ -133,7 +150,9 @@ def fetch_pr(conn, repo, pr_number, pr_id, pr_author, pr_author_type):
                     patch_ref = str((d / (f["filename"].replace("/", "__") + ".patch")).relative_to(config.DATA_DIR))
                     (config.DATA_DIR / patch_ref).write_text(patch)
             store.add_file_change(conn, sha, f["filename"], patch_ref,
-                                  f.get("additions"), f.get("deletions"))
+                                  f.get("additions"), f.get("deletions"),
+                                  status=f.get("status"), changes=f.get("changes"),
+                                  previous_filename=f.get("previous_filename"))
     store.log_fetch(conn, repo, pr_number, "ok")
     conn.commit()
 
@@ -145,6 +164,19 @@ def run(limit=None):
     store.init_db(conn)   # ensure schema + migrations (e.g. commits.committed_at) exist before upserts
     prs = conn.execute("SELECT id, repo, pr_number, author, author_type FROM prs ORDER BY id").fetchall()
     todo = [p for p in prs if not store.already_fetched(conn, p["repo"], p["pr_number"])]
+    # FETCH_AGENTS=devin,claude,codex,... restricts fetching to PRs authored by those coding agents
+    # (plus AGENTS_FIRST=1 just prioritises them without excluding the rest). Lets you gather the
+    # alternative-AI SATDs first/only, instead of grinding through the copilot/human backlog.
+    want = {a.strip().lower() for a in os.environ.get("FETCH_AGENTS", "").split(",") if a.strip()}
+    if want:
+        def _is_wanted(p):
+            k, name = agents.classify_actor(p["author"])
+            return k == "coding_agent" and name in want
+        if os.environ.get("AGENTS_FIRST") == "1":
+            todo = [p for p in todo if _is_wanted(p)] + [p for p in todo if not _is_wanted(p)]
+        else:
+            todo = [p for p in todo if _is_wanted(p)]
+        print(f"FETCH_AGENTS filter active: {sorted(want)}")
     if limit:
         todo = todo[:limit]
     print(f"{len(prs)} PRs total, {len(todo)} to fetch (rest resumed from fetch_log)")
