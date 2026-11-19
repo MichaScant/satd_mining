@@ -33,10 +33,17 @@ from stage2_fetch import _get   # reuse rate-limit-aware GitHub GET
 
 _stats = {"reworded_fallback_fires": 0, "untrackable": 0, "clone_fail": 0}
 
+CLONE_TIMEOUT = 300   # hard cap on one `git clone` (s) so a hung/giant repo can't freeze the run
+GIT_OP_TIMEOUT = 180  # hard cap on any per-repo git op (show/log/pickaxe) so none blocks forever
 
-def git(clone, *args) -> str:
-    r = subprocess.run(["git", "-C", str(clone), *args], capture_output=True, text=True)
-    return r.stdout
+
+def git(clone, *args, timeout=GIT_OP_TIMEOUT) -> str:
+    try:
+        r = subprocess.run(["git", "-C", str(clone), *args],
+                           capture_output=True, text=True, timeout=timeout)
+        return r.stdout
+    except subprocess.TimeoutExpired:
+        return ""
 
 
 def _clone_url(repo, repo_url):
@@ -54,8 +61,18 @@ def ensure_clone(repo, repo_url=None):
     if dest.exists():                      # leftover from a prior failed clone -> remove and retry
         shutil.rmtree(dest, ignore_errors=True)
     url = _clone_url(repo, repo_url)
-    cp = subprocess.run(["git", "clone", "--filter=blob:none", "--no-checkout", url, str(dest)],
-                        capture_output=True, text=True)
+    try:
+        # http.lowSpeed* aborts a dead/stalled transfer after 60s; timeout is the hard backstop so a
+        # hung or giant clone can never freeze the single-threaded run.
+        cp = subprocess.run(
+            ["git", "-c", "http.lowSpeedLimit=1000", "-c", "http.lowSpeedTime=60",
+             "clone", "--filter=blob:none", "--no-checkout", url, str(dest)],
+            capture_output=True, text=True, timeout=CLONE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        shutil.rmtree(dest, ignore_errors=True)
+        _stats["clone_fail"] += 1
+        _stats["last_clone_err"] = f"{url} -> TIMEOUT after {CLONE_TIMEOUT}s"
+        return None
     if (dest / ".git").exists():
         git(dest, "checkout", "-q", git(dest, "symbolic-ref", "--short", "HEAD").strip() or "HEAD")
         return dest

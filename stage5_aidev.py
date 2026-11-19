@@ -17,7 +17,9 @@ Run (no token needed — public clones are anonymous):
   python stage5_aidev.py [--limit N]
 """
 import argparse
+import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -164,6 +166,14 @@ def track_aidev(conn, inst, clone):
     return "untrackable"
 
 
+def _prune_clone(clones, repo):
+    """Delete a repo's clone once all its instances are tracked. Rows are ordered by repo so we
+    never revisit it -> caps clone disk at ~one repo instead of accumulating thousands on /home."""
+    d = clones.pop(repo, None)
+    if d:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def run(limit=None):
     conn = store.connect()
     store.init_db(conn)
@@ -178,9 +188,14 @@ def run(limit=None):
         rows = rows[:limit]
     merged = sum(1 for r in rows if r["merged_at"])
     print(f"{len(rows)} AIDev instances to track  (merged={merged}, unmerged={len(rows) - merged})")
+    prune = os.environ.get("PRUNE_CLONES", "1") != "0"   # rm each repo's clone after its instances
     clones = {}
+    prev_repo = None
     for i, inst in enumerate(rows, 1):
         repo = inst["repo"]
+        if prune and prev_repo is not None and repo != prev_repo:
+            _prune_clone(clones, prev_repo)
+        prev_repo = repo
         if repo not in clones:
             clones[repo] = s5.ensure_clone(repo, inst["repo_url"] if "repo_url" in inst.keys() else None)
         clone = clones[repo]
@@ -194,6 +209,8 @@ def run(limit=None):
         except Exception as e:
             st = f"error: {e}"
         print(f"[{i}/{len(rows)}] {repo}:{inst['path']} #{inst['introducing_pr']} -> {st}")
+    if prune and prev_repo is not None:
+        _prune_clone(clones, prev_repo)
     print(f"\ndone. outcomes: {_astats}")
     print(f"clone/helper stats: {s5._stats}")
     conn.close()
