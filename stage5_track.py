@@ -19,6 +19,7 @@ Tactics follow SATDBailiff (arXiv:2107.00073), Maldonado et al., Zampetti et al.
 Run:  GITHUB_TOKEN=... python stage5_track.py [--limit N]
 """
 import argparse
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -38,17 +39,28 @@ def git(clone, *args) -> str:
     return r.stdout
 
 
+def _clone_url(repo, repo_url):
+    """A git-cloneable URL. AIDev stores the API form (https://api.github.com/repos/owner/name),
+    which git can't clone (403); only trust an explicit github.com URL, else build the canonical one."""
+    if repo_url and "github.com" in repo_url and "api.github.com" not in repo_url:
+        return repo_url if repo_url.endswith(".git") else repo_url.rstrip("/") + ".git"
+    return f"https://github.com/{repo}.git"
+
+
 def ensure_clone(repo, repo_url=None):
     dest = config.CLONES_DIR / repo.replace("/", "__")
     if (dest / ".git").exists():
         return dest
-    url = repo_url or f"https://github.com/{repo}.git"
-    subprocess.run(["git", "clone", "--filter=blob:none", "--no-checkout", url, str(dest)],
-                   capture_output=True, text=True)
+    if dest.exists():                      # leftover from a prior failed clone -> remove and retry
+        shutil.rmtree(dest, ignore_errors=True)
+    url = _clone_url(repo, repo_url)
+    cp = subprocess.run(["git", "clone", "--filter=blob:none", "--no-checkout", url, str(dest)],
+                        capture_output=True, text=True)
     if (dest / ".git").exists():
         git(dest, "checkout", "-q", git(dest, "symbolic-ref", "--short", "HEAD").strip() or "HEAD")
         return dest
     _stats["clone_fail"] += 1
+    _stats["last_clone_err"] = f"{url} -> {(cp.stderr or cp.stdout or '').strip()[:200]}"
     return None
 
 
@@ -294,18 +306,26 @@ def track_instance(conn, inst, clone):
     conn.commit()
 
 
-def run(limit=None):
+def run(limit=None, cohort=None):
     conn = store.connect()
     store.init_db(conn)   # ensure new tracking columns (n_ai_file_edits/n_ai_near_edits) exist
-    rows = conn.execute(
-        "SELECT i.*, p.repo_url, p.author_type AS pr_author_type FROM satd_instances i "
-        "LEFT JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "
-        "WHERE i.status IS NULL AND (i.channel IS NULL OR i.channel='code_comment') "
-        "AND i.introducing_sha IS NOT NULL ORDER BY i.repo"
-    ).fetchall()
+    q = ("SELECT i.*, p.repo_url, p.author_type AS pr_author_type, p.cohort AS pr_cohort "
+         "FROM satd_instances i "
+         "LEFT JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "
+         "WHERE i.status IS NULL AND (i.channel IS NULL OR i.channel='code_comment') "
+         "AND i.introducing_sha IS NOT NULL")
+    params = []
+    if cohort:                         # bound the run to one cohort, e.g. aidev
+        q += " AND p.cohort = ?"
+        params.append(cohort)
+    q += " ORDER BY i.repo"
+    rows = conn.execute(q, params).fetchall()
     if limit:
         rows = rows[:limit]
-    print(f"{len(rows)} instances to track")
+    from collections import Counter   # show exactly what's queued, so no accidental 100K sweep
+    byc = Counter(r["pr_cohort"] for r in rows)
+    print(f"{len(rows)} instances to track"
+          + (f" (cohort={cohort})" if cohort else "") + f"; by cohort: {dict(byc)}")
     clones = {}
     for i, inst in enumerate(rows, 1):
         repo = inst["repo"]
@@ -332,4 +352,5 @@ def _has_col(conn, table, col):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--cohort", default=None, help="only track this PR cohort, e.g. aidev")
     run(**vars(ap.parse_args()))
