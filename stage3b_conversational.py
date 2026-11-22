@@ -51,17 +51,34 @@ def _store_conv(conn, repo, pr_number, intro_sentinel, path, raw, actor_class,
     return 1
 
 
+def _scope(conn):
+    """SQL predicate (on alias `p`=prs) restricting AIDev to the examined sample so conversation
+    scanning covers the SAME PRs as the code scan (Suzhen-parity). Non-AIDev cohorts are unaffected.
+    If the manifest is missing, AIDev PRs are excluded (with a warning) rather than scanning all 261k."""
+    has = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='aidev_sample_prs'").fetchone()
+    if has:
+        return ("(p.cohort <> 'aidev' OR EXISTS (SELECT 1 FROM aidev_sample_prs s "
+                "WHERE s.repo=p.repo AND s.pr_number=p.pr_number))")
+    n_aidev = conn.execute("SELECT COUNT(*) n FROM prs WHERE cohort='aidev'").fetchone()["n"]
+    if n_aidev:
+        print("  WARNING: aidev_sample_prs manifest missing — run "
+              "`stage3_aidev.py --record-sample` first; SKIPPING AIDev conversations this pass.", flush=True)
+    return "p.cohort <> 'aidev'"
+
+
 def run():
     conn = store.connect()
     n_body = n_ai = n_dev = 0
+    scope = _scope(conn)
 
-    n_prs = conn.execute("SELECT COUNT(*) n FROM prs").fetchone()["n"]
-    n_utt = conn.execute("SELECT COUNT(*) n FROM review_events WHERE body IS NOT NULL").fetchone()["n"]
-    print(f"scanning {n_prs} PR bodies + {n_utt} utterances ...", flush=True)
+    n_prs = conn.execute(f"SELECT COUNT(*) n FROM prs p WHERE {scope}").fetchone()["n"]
+    n_utt = conn.execute(f"SELECT COUNT(*) n FROM review_events e JOIN prs p ON p.id=e.pr_id "
+                         f"WHERE e.body IS NOT NULL AND {scope}").fetchone()["n"]
+    print(f"scanning {n_prs} in-scope PR bodies + {n_utt} in-scope utterances ...", flush=True)
 
     # (1) PR title + body — admission by the PR author
     for i, p in enumerate(conn.execute(
-        "SELECT id, repo, pr_number, author_type, title, body FROM prs"
+        f"SELECT id, repo, pr_number, author_type, title, body FROM prs p WHERE {scope}"
     ).fetchall(), 1):
         text = " ".join(x for x in (p["title"], p["body"]) if x)
         n_body += _store_conv(
@@ -75,9 +92,9 @@ def run():
 
     # (2)/(3) utterances — agent replies (admission) and developer requests
     for j, e in enumerate(conn.execute(
-        "SELECT e.id, e.pr_id, e.ts, e.actor_type, e.file_path, e.body, "
-        "p.repo, p.pr_number FROM review_events e JOIN prs p ON p.id=e.pr_id "
-        "WHERE e.body IS NOT NULL"
+        f"SELECT e.id, e.pr_id, e.ts, e.actor_type, e.file_path, e.body, "
+        f"p.repo, p.pr_number FROM review_events e JOIN prs p ON p.id=e.pr_id "
+        f"WHERE e.body IS NOT NULL AND {scope}"
     ).fetchall(), 1):
         if e["actor_type"] == "ai":
             source_kind, circumstance = "agent_reply", None

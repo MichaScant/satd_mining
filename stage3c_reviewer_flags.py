@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config  # noqa: F401 (keeps import path consistent)
 from db import store
+from stage3b_conversational import _scope   # AIDev scoped to the examined sample (Suzhen-parity)
 
 # debt-flagging language a reviewer uses to point out technical debt
 FLAG_RE = {
@@ -29,8 +30,10 @@ FLAG_RE = {
 
 
 def scan_flags(conn) -> int:
+    scope = _scope(conn)   # restrict AIDev to the examined sample; other cohorts unaffected
     rows = conn.execute(
-        "SELECT id, pr_id, actor_type, file_path, ts, body FROM review_events WHERE body IS NOT NULL"
+        f"SELECT e.id, e.pr_id, e.actor_type, e.file_path, e.ts, e.body "
+        f"FROM review_events e JOIN prs p ON p.id=e.pr_id WHERE e.body IS NOT NULL AND {scope}"
     ).fetchall()
     n = 0
     for r in rows:
@@ -50,15 +53,20 @@ def scan_flags(conn) -> int:
 def set_first_pointers(conn) -> int:
     """Earliest of (self-admission at commit level) vs (reviewer flag at file level) wins."""
     insts = conn.execute(
-        "SELECT i.id, i.repo, i.path, i.introducer_kind, i.author_class, i.introducing_pr, c.authored_at "
-        "FROM satd_instances i LEFT JOIN commits c ON c.sha = i.introducing_sha"
+        "SELECT i.id, i.repo, i.path, i.introducer_kind, i.author_class, i.introducing_pr, "
+        "       c.authored_at, p.created_at, p.merged_at "
+        "FROM satd_instances i LEFT JOIN commits c ON c.sha = i.introducing_sha "
+        "LEFT JOIN prs p ON p.repo = i.repo AND p.pr_number = i.introducing_pr"
     ).fetchall()
     # the self-admitting actor = who introduced the debt (coding agent -> ai), not the legacy
     # author_class 'conflict' bucket
     _kind = {"coding_agent": "ai", "human": "human", "automation_bot": "automation"}
     n = 0
     for i in insts:
-        self_ts = i["authored_at"]
+        # self-admission time = commit authored_at; for cohorts without commit dates (AIDev) fall
+        # back to the PR's created_at/merged_at, so 'who pointed it out first' still resolves (the
+        # agent's SATD-bearing code exists at PR creation, before reviewers can comment).
+        self_ts = i["authored_at"] or i["created_at"] or i["merged_at"]
         self_actor = _kind.get(i["introducer_kind"], i["author_class"] or "human")
         best = (self_ts, self_actor, "commit") if self_ts else None   # self-admission
         # earliest reviewer flag on the same file WITHIN the introducing PR (a reviewer may have

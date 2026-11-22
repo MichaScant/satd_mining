@@ -30,8 +30,12 @@ def _repo_num(url):
     return (m.group(1), int(m.group(2))) if m else (None, None)
 
 
-def _scan_agent(conn, details, name, prs_list, per_agent, chunk):
-    """Scan one agent's PRs until `per_agent` SATD instances are found (or PRs exhausted)."""
+def _scan_agent(conn, details, name, prs_list, per_agent, chunk, examined=None):
+    """Scan one agent's PRs until `per_agent` SATD instances are found (or PRs exhausted).
+
+    If `examined` (a set) is passed, every PR whose diffs we actually look at is added to it as
+    (repo, pr_number, agent) — this is the manifest of the EXAMINED sample (incl. zero-SATD PRs),
+    so conversation/reviewer scanning can later be scoped to exactly the same PRs (Suzhen-parity)."""
     idmap = {pid: (repo, num) for pid, repo, num in prs_list}
     ids = list(idmap)
     cols = ["pr_id", "sha", "filename", "patch", "message"]
@@ -51,6 +55,8 @@ def _scan_agent(conn, details, name, prs_list, per_agent, chunk):
             if not meta:
                 continue
             repo, num = meta
+            if examined is not None:                 # record the PR as part of the examined sample
+                examined.add((repo, num, name))
             path = r["filename"]
             if not sd.is_source_file(path):
                 continue
@@ -79,7 +85,8 @@ def _scan_agent(conn, details, name, prs_list, per_agent, chunk):
     return found
 
 
-def run(aidev_dir="data/aidev", agents_filter=None, exclude=None, per_agent=2000, chunk=5000):
+def run(aidev_dir="data/aidev", agents_filter=None, exclude=None, per_agent=2000, chunk=5000,
+        record_sample=False):
     d = Path(aidev_dir)
     pr = pl.read_parquet(d / "pull_request.parquet", columns=["id", "html_url", "agent"])
 
@@ -104,9 +111,19 @@ def run(aidev_dir="data/aidev", agents_filter=None, exclude=None, per_agent=2000
 
     conn = store.connect(); store.init_db(conn)
     details = d / "pr_commit_details.parquet"
+    examined = set() if record_sample else None
+    if record_sample:
+        conn.execute("CREATE TABLE IF NOT EXISTS aidev_sample_prs "
+                     "(repo TEXT, pr_number INTEGER, agent TEXT, PRIMARY KEY (repo, pr_number))")
+        conn.commit()
     grand = 0
     for name in sorted(by_agent, key=lambda a: -len(by_agent[a])):
-        grand += _scan_agent(conn, details, name, by_agent[name], per_agent, chunk)
+        grand += _scan_agent(conn, details, name, by_agent[name], per_agent, chunk, examined=examined)
+    if record_sample and examined is not None:
+        conn.executemany("INSERT OR IGNORE INTO aidev_sample_prs (repo, pr_number, agent) VALUES (?,?,?)",
+                         sorted(examined))
+        conn.commit()
+        print(f"\n[record-sample] examined-PR manifest: {len(examined)} PRs -> aidev_sample_prs")
     print(f"\ndone: {grand} AIDev code-comment SATD instances total")
     print("by agent (aidev cohort, code channel):")
     for row in conn.execute(
@@ -126,4 +143,7 @@ if __name__ == "__main__":
     ap.add_argument("--per-agent", dest="per_agent", type=int, default=2000,
                     help="stop each agent once this many SATD instances are found (default 2000)")
     ap.add_argument("--chunk", type=int, default=5000, help="PRs per parquet-scan batch (memory knob)")
+    ap.add_argument("--record-sample", dest="record_sample", action="store_true",
+                    help="write the examined-PR manifest to aidev_sample_prs (idempotent; for scoping "
+                         "conversation/reviewer scans to the same PRs as the code scan)")
     run(**vars(ap.parse_args()))

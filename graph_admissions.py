@@ -24,7 +24,9 @@ OUT = HERE / "graphs"; OUT.mkdir(exist_ok=True)
 ELI, SPO = "#3b7dd8", "#e07b39"
 
 AGENT_COLORS = {"copilot": "#3b7dd8", "devin": "#e07b39", "claude": "#3bb08f",
-                "codegen": "#8e6fd0", "cursor": "#d8503b", "sweep": "#e8b23b", "codex": "#c05a8f"}
+                "codegen": "#8e6fd0", "cursor": "#d8503b", "sweep": "#e8b23b",
+                "codex": "#c05a8f", "jules": "#d4a017"}
+_FALLBACK_COLORS = ["#6b8e23", "#4682b4", "#b05a7a", "#7f7f7f", "#5f9ea0", "#c47f3d"]
 # FOCUS_ALT (env GRAPH_FOCUS=alt) centres the non-copilot alternatives; copilot is dropped from the
 # displayed set but STILL used to build the pooled prior for projection regularisation.
 FOCUS_ALT = os.environ.get("GRAPH_FOCUS", "").lower() == "alt"
@@ -58,6 +60,9 @@ def _discover_agents(include_copilot=True):
 
 
 AGENTS = _discover_agents(include_copilot=not FOCUS_ALT)
+# guarantee every discovered agent has a color so a new agent can't KeyError the plots
+for _i, _a in enumerate(AGENTS):
+    AGENT_COLORS.setdefault(_a, _FALLBACK_COLORS[_i % len(_FALLBACK_COLORS)])
 
 FT = "AFTER convo admission (follow-through)"
 SPONT = "SPONTANEOUS (no dev signal)"
