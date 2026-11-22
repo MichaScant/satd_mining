@@ -69,7 +69,7 @@ def _scope(conn):
 
 def run():
     conn = store.connect()
-    n_body = n_ai = n_dev = 0
+    n_body = n_ai = n_dev = n_rev = 0
     scope = _scope(conn)
 
     n_prs = conn.execute(f"SELECT COUNT(*) n FROM prs p WHERE {scope}").fetchone()["n"]
@@ -97,11 +97,13 @@ def run():
         f"p.repo, p.pr_number FROM review_events e JOIN prs p ON p.id=e.pr_id "
         f"WHERE e.body IS NOT NULL AND {scope}"
     ).fetchall(), 1):
-        if e["actor_type"] == "ai":
+        if e["actor_type"] == "ai":                        # the PR's own authoring agent (self-admission)
             source_kind, circumstance = "agent_reply", None
+        elif e["actor_type"] == "ai_reviewer":             # an AI review bot flagging debt (labeled, not self-admitted)
+            source_kind, circumstance = "ai_reviewer_flag", "flagged_by_ai_reviewer"
         elif e["actor_type"] == "human":
             source_kind, circumstance = "developer_request", "requested_by_developer"
-        else:
+        else:                                              # automation / unknown -> skip
             continue
         path = e["file_path"] or f"__pr__/{e['pr_number']}"
         got = _store_conv(
@@ -112,15 +114,18 @@ def run():
         if got:
             if source_kind == "agent_reply":
                 n_ai += got
+            elif source_kind == "ai_reviewer_flag":
+                n_rev += got
             else:
                 n_dev += got
         if j % 50000 == 0:
             conn.commit()
-            print(f"  utterances {j}/{n_utt} | agent={n_ai} dev={n_dev}", flush=True)
+            print(f"  utterances {j}/{n_utt} | agent={n_ai} ai_reviewer={n_rev} dev={n_dev}", flush=True)
 
     conn.commit()
-    tot = n_body + n_ai + n_dev
-    print(f"conversational SATD: {tot}  (pr_body={n_body}, agent_reply={n_ai}, developer_request={n_dev})")
+    tot = n_body + n_ai + n_rev + n_dev
+    print(f"conversational SATD: {tot}  (pr_body={n_body}, agent_reply={n_ai}, "
+          f"ai_reviewer_flag={n_rev}, developer_request={n_dev})")
     # per-actor-type conversational rate (NEW — no published baseline; report with validation)
     for at in ("ai", "human"):
         utt = conn.execute("SELECT COUNT(*) n FROM review_events WHERE actor_type=? AND body IS NOT NULL",

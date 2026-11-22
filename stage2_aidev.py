@@ -92,9 +92,12 @@ def load_commits(conn, d, idmap, prslook, chunk):
     print(f"done: {n} AIDev commits loaded")
 
 
+_ACTOR_MAP = {"self_agent": "ai", "ai_reviewer": "ai_reviewer", "human": "human", "automation": "automation"}
+
+
 def load_reviews(conn, d, idmap, prslook, chunk):
-    # in-scope (repo, pr_number) for rows that key by URL (pr_review_comments has no pr_id)
-    scope = {(repo, num) for (repo, num, name) in idmap.values()}
+    # in-scope (repo, pr_number) -> authoring agent, for URL-keyed rows and relational classification
+    scope = {(repo, num): name for (repo, num, name) in idmap.values()}
     n = 0
     for fname, cm in COLMAP_REVIEW.items():
         f = d / fname
@@ -115,7 +118,7 @@ def load_reviews(conn, d, idmap, prslook, chunk):
                 meta = idmap.get(r["pr_id"])
                 if not meta:
                     continue
-                repo, num, _ = meta
+                repo, num, pr_agent = meta
             else:                                        # resolve via API pull_request_url
                 m = _PR_API_URL.search(str(r.get(pr_key) or ""))
                 if not m:
@@ -123,14 +126,17 @@ def load_reviews(conn, d, idmap, prslook, chunk):
                 repo, num = m.group(1), int(m.group(2))
                 if (repo, num) not in scope:
                     continue
+                pr_agent = scope[(repo, num)]
             prid = prslook.get((repo, num))
             if not prid:
                 continue
             actor = r.get(cm["actor"])
             pos = r.get(cm["position"]) if cm.get("position") else None
+            # 3-way: self_agent (own PR) / ai_reviewer / human / automation -> review_events convention
+            atype = _ACTOR_MAP.get(agents.classify_review_actor(actor, pr_agent), "human")
             store.add_review_event(
                 conn, pr_id=prid, ts=r.get(cm["ts"]), actor=str(actor or "") or None,
-                actor_type=agents.classify_actor(actor)[0], kind=cm["kind"],
+                actor_type=atype, kind=cm["kind"],
                 file_path=(r.get(cm["file_path"]) if cm.get("file_path") else None),
                 body=r.get(cm["body"]),
                 position=(int(pos) if pos is not None else None),

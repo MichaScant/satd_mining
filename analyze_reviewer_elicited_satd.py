@@ -1,13 +1,13 @@
-"""How often an AI agent NOTICES its own technical debt, and the CIRCUMSTANCES — plus how
-often it REVISITS (removes) debt. Two tracked acts, each with its trigger context.
+"""How often an AI agent NOTICES its own technical debt, REVISITS (removes) it, and — critically —
+whether it did so SPONTANEOUSLY or was PROMPTED (elicited). Driven by the stored 3-way actor_type
+(ai = the PR's own authoring agent; ai_reviewer = an AI review bot; human), so it works for both
+Suzhen (author == agent, no ai_reviewer) and AIDev (human PR author, agent label separate, AI
+reviewers present).
 
-  NOTICING   (is_self_admission): agent admits debt it is leaving in its own change.
-  REVISITING (is_debt_removal):   agent removes/resolves a debt item.
-
-For each, we log the trigger by scanning the FULL preceding PR context (dev named debt /
-alluded to an error / raised a concern-or-question / changes_requested / any human / none).
-Coding agents only, authoring agent only, code blocks stripped. Dialogue = replies/comments
-(PR descriptions reported separately — they're scope narration, noisier).
+For each self-agent admission/removal we scan the FULL preceding PR context and classify the trigger:
+  human-elicited      : a developer named debt / alluded to an error / requested changes / raised a concern
+  ai_reviewer-elicited: an AI review bot named debt or raised a concern BEFORE the agent admitted  (NEW)
+  spontaneous         : no prior signal — the agent noticed on its own
 
   python analyze_reviewer_elicited_satd.py
 """
@@ -20,14 +20,12 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import agents
 import satd_detect as sd
 
 HERE = Path(__file__).resolve().parent
 
 
 def _days(a, b):
-    """Whole-day gap between two ISO-8601 Z timestamps (b - a); None if either missing."""
     if not a or not b:
         return None
     try:
@@ -37,84 +35,81 @@ def _days(a, b):
     except Exception:
         return None
 
+
 ERR = re.compile(r"\b(doesn'?t work|not working|broken|fail\w*|\berror\b|\bbug\b|\bwrong\b|incorrect|"
     r"crash\w*|exception|not right|unexpected|regression|typo|not correct|misses)\b", re.I)
 CONCERN = re.compile(r"\?|\b(why|what|hmm+|weird|odd|strange|confus\w*|unclear|not sure|"
     r"should (we|this|it|you|be)|could you|can you|please|consider|instead of|rather than|"
     r"needs? to|remove this|change this|revert)\b", re.I)
-ORDER = ["dev named debt", "dev alluded to error", "changes_requested",
-         "dev raised concern/question", "neutral dev comment before", "SPONTANEOUS (no dev signal)"]
+
+# display order (strongest/most-specific first); human and ai_reviewer are distinct elicitation classes
+ORDER = ["dev named debt", "ai_reviewer named debt", "dev alluded to error", "dev changes_requested",
+         "dev raised concern/question", "ai_reviewer raised concern",
+         "neutral dev comment before", "neutral ai_reviewer comment before", "SPONTANEOUS (no signal)"]
+HUMAN_ELICIT = {"dev named debt", "dev alluded to error", "dev changes_requested",
+                "dev raised concern/question", "neutral dev comment before"}
+AIREV_ELICIT = {"ai_reviewer named debt", "ai_reviewer raised concern", "neutral ai_reviewer comment before"}
 
 
 def has_debt(t):
     return sd.detect_conversational(t) is not None
 
 
-def _classify(pd, pe, pcr, pc, ph):
-    if pd: return "dev named debt"
-    if pe: return "dev alluded to error"
-    if pcr: return "changes_requested"
-    if pc: return "dev raised concern/question"
-    if ph: return "neutral dev comment before"
-    return "SPONTANEOUS (no dev signal)"
+def _cr(kind, review_state):
+    """changes-requested in either convention: Suzhen kind='changes_requested' or AIDev review_state."""
+    return kind == "changes_requested" or (str(review_state or "").upper() == "CHANGES_REQUESTED")
 
 
 def trigger(tl, i):
-    """Return (circumstance_label, triggered_at) — triggered_at is the timestamp of the FIRST
-    developer turn matching the winning category (None if spontaneous), so we can measure the
-    latency between the dev raising it and the LLM noticing it. tl rows carry ts at index 6."""
-    t_named = t_err = t_cr = t_concern = t_human = None
+    """(circumstance, triggered_at) from the turns BEFORE index i.
+    tl row = (actor_type, text, kind, ts, review_state). Distinguishes human vs ai_reviewer elicitation."""
+    t_hd = t_he = t_hc = t_cr = t_h = None   # human: named-debt / error / concern / changes-req / any
+    t_rd = t_rc = t_r = None                 # ai_reviewer: named-debt / concern / any
     for j in range(i):
-        kj, tj, rkj, tsj = tl[j][0], tl[j][1], tl[j][3], tl[j][6]
-        if rkj == "changes_requested" and t_cr is None:
+        at, tj, kj, tsj, rs = tl[j]
+        if _cr(kj, rs) and at == "human" and t_cr is None:
             t_cr = tsj
-        if kj == "human":
-            if t_human is None: t_human = tsj
-            if has_debt(tj) and t_named is None: t_named = tsj
-            if ERR.search(tj) and t_err is None: t_err = tsj
-            if CONCERN.search(tj) and t_concern is None: t_concern = tsj
-    if t_named is not None: return "dev named debt", t_named
-    if t_err is not None: return "dev alluded to error", t_err
-    if t_cr is not None: return "changes_requested", t_cr
-    if t_concern is not None: return "dev raised concern/question", t_concern
-    if t_human is not None: return "neutral dev comment before", t_human
-    return "SPONTANEOUS (no dev signal)", None
+        if at == "human":
+            if t_h is None: t_h = tsj
+            if has_debt(tj) and t_hd is None: t_hd = tsj
+            if ERR.search(tj) and t_he is None: t_he = tsj
+            if CONCERN.search(tj) and t_hc is None: t_hc = tsj
+        elif at == "ai_reviewer":
+            if t_r is None: t_r = tsj
+            if (has_debt(tj) or ERR.search(tj)) and t_rd is None: t_rd = tsj
+            if CONCERN.search(tj) and t_rc is None: t_rc = tsj
+    if t_hd is not None: return "dev named debt", t_hd
+    if t_rd is not None: return "ai_reviewer named debt", t_rd
+    if t_he is not None: return "dev alluded to error", t_he
+    if t_cr is not None: return "dev changes_requested", t_cr
+    if t_hc is not None: return "dev raised concern/question", t_hc
+    if t_rc is not None: return "ai_reviewer raised concern", t_rc
+    if t_h is not None: return "neutral dev comment before", t_h
+    if t_r is not None: return "neutral ai_reviewer comment before", t_r
+    return "SPONTANEOUS (no signal)", None
 
 
 def code_trigger(conn, pr_id, authored_at):
-    """Same taxonomy as trigger(), but for a CODE-comment SATD instance: scan the
-    DEVELOPER turns in the PR that happened BEFORE the introducing commit."""
+    """Trigger for a CODE-comment SATD: scan prompter turns (human or ai_reviewer) in the PR BEFORE
+    the introducing commit. Returns a circumstance label. (AIDev code commits have no date -> ts is
+    NULL -> no preceding turns resolvable -> SPONTANEOUS; a known AIDev limitation.)"""
     if not pr_id or not authored_at:
-        return "SPONTANEOUS (no dev signal)"
-    pd = pe = pcr = pc = ph = False
-    for e in conn.execute(
-            "SELECT actor, kind, body FROM review_events "
-            "WHERE pr_id=? AND ts IS NOT NULL AND ts<=? AND body IS NOT NULL "
-            "ORDER BY ts, id", (pr_id, authored_at)):
-        if agents.classify_actor(e["actor"])[0] != "human":
-            continue
-        ph = True
-        tj = sd.strip_code(e["body"] or "")
-        if e["kind"] == "changes_requested": pcr = True
-        if has_debt(tj): pd = True
-        if ERR.search(tj): pe = True
-        if CONCERN.search(tj): pc = True
-    return _classify(pd, pe, pcr, pc, ph)
+        return "SPONTANEOUS (no signal)"
+    tl = [(e["actor_type"], sd.strip_code(e["body"] or ""), e["kind"], e["ts"], e["review_state"])
+          for e in conn.execute(
+            "SELECT actor_type, kind, body, ts, review_state FROM review_events "
+            "WHERE pr_id=? AND ts IS NOT NULL AND ts<=? AND body IS NOT NULL ORDER BY ts, id",
+            (pr_id, authored_at))]
+    return trigger(tl + [("ai", "", None, None, None)], len(tl))[0]   # classify over all prior turns
 
 
-def preceded_by_convo_admission(conn, pr_id, authored_at, author):
-    """Did the authoring agent ALREADY self-admit this debt in the PR conversation
-    BEFORE this commit landed? If so, the code comment is a follow-through on that
-    conversational admission — NOT an independent code-channel noticing, and counting
-    it would double-count against the dialogue admissions."""
-    if not pr_id or not authored_at or not author:
+def preceded_by_convo_admission(conn, pr_id, authored_at):
+    """Did the authoring agent already self-admit this debt in conversation BEFORE the commit?"""
+    if not pr_id or not authored_at:
         return False
     for e in conn.execute(
-            "SELECT actor, body FROM review_events "
-            "WHERE pr_id=? AND ts IS NOT NULL AND ts<? AND body IS NOT NULL "
-            "ORDER BY ts, id", (pr_id, authored_at)):
-        if e["actor"] != author:            # the authoring agent's own turns only
-            continue
+            "SELECT body FROM review_events WHERE pr_id=? AND actor_type='ai' AND ts IS NOT NULL "
+            "AND ts<? AND body IS NOT NULL ORDER BY ts, id", (pr_id, authored_at)):
         if sd.is_self_admission(sd.strip_code(e["body"] or "")):
             return True
     return False
@@ -123,77 +118,60 @@ def preceded_by_convo_admission(conn, pr_id, authored_at, author):
 def run():
     conn = sqlite3.connect(HERE / "db" / "satd_mining.db")
     conn.row_factory = sqlite3.Row
-    agent_prs = set()
-    for r in conn.execute("SELECT DISTINCT pr_id, actor FROM review_events WHERE body IS NOT NULL"):
-        if agents.classify_actor(r["actor"])[0] == "coding_agent":
-            agent_prs.add(r["pr_id"])
+
+    # PRs that contain at least one SELF-agent comment (actor_type='ai')
+    agent_prs = [r[0] for r in conn.execute(
+        "SELECT DISTINCT pr_id FROM review_events WHERE actor_type='ai' AND body IS NOT NULL")]
+    print(f"scanning {len(agent_prs)} PRs with a self-agent turn ...", flush=True)
 
     notice = {"dialogue": Counter(), "pr_desc": Counter()}
     revisit = {"dialogue": Counter(), "pr_desc": Counter()}
     rows = []
     for pr in agent_prs:
         evs = [dict(r) for r in conn.execute(
-            "SELECT e.actor actor, e.body body, e.kind kind, e.ts ts, e.file_path file_path, "
-            "p.author author, p.repo repo, p.pr_number prn "
+            "SELECT e.actor_type at, e.body body, e.kind kind, e.ts ts, e.file_path fp, "
+            "e.review_state rs, p.repo repo, p.pr_number prn, p.agent agent "
             "FROM review_events e JOIN prs p ON p.id=e.pr_id "
             "WHERE e.pr_id=? AND e.body IS NOT NULL ORDER BY e.ts, e.id", (pr,))]
         if not evs:
             continue
-        author = evs[0]["author"]
-        if agents.classify_actor(author)[0] != "coding_agent":
-            continue
-        # tl row: (actor_class, text, actor, kind, repo, prn, ts, file_path)  — ts at index 6
-        tl = [(agents.classify_actor(e["actor"])[0], sd.strip_code(e["body"] or ""), e["actor"],
-               e["kind"], e["repo"], e["prn"], e["ts"], e["file_path"]) for e in evs]
-        for i, (k, txt, actor, rk, repo, prn, ts, fpath) in enumerate(tl):
-            if actor != author:
+        tl = [(e["at"], sd.strip_code(e["body"] or ""), e["kind"], e["ts"], e["rs"]) for e in evs]
+        for i, e in enumerate(evs):
+            if e["at"] != "ai":                 # only the PR's own authoring agent speaks here
                 continue
-            bucket = "pr_desc" if rk == "created" else "dialogue"
+            txt = tl[i][1]
+            bucket = "pr_desc" if e["kind"] == "created" else "dialogue"
             adm = sd.is_self_admission(txt)
             rem = sd.is_debt_removal(txt)
             if not (adm or rem):
                 continue
-            # messages exchanged BEFORE this turn (how much back-and-forth preceded noticing)
             prior = tl[:i]
-            n_before = len(prior)
-            n_dev_before = sum(1 for p in prior if p[0] == "human")
-            n_ai_before = sum(1 for p in prior if p[0] == "coding_agent")
-            counts = {"n_msgs_before": n_before, "n_dev_msgs_before": n_dev_before,
-                      "n_ai_msgs_before": n_ai_before}
-            if adm:
-                trg, trg_at = trigger(tl, i); notice[bucket][trg] += 1
-                rows.append({"act": "notice", "bucket": bucket, "trigger": trg, "channel": "conversation",
-                             "repo": repo, "pr": prn, "agent": actor, "file_path": fpath,
-                             "noticed_at": ts, "triggered_at": trg_at, "latency_days": _days(trg_at, ts),
-                             **counts, "text": adm})
-            if rem:
-                trg, trg_at = trigger(tl, i); revisit[bucket][trg] += 1
-                rows.append({"act": "revisit", "bucket": bucket, "trigger": trg, "channel": "conversation",
-                             "repo": repo, "pr": prn, "agent": actor, "file_path": fpath,
-                             "noticed_at": ts, "triggered_at": trg_at, "latency_days": _days(trg_at, ts),
-                             **counts, "text": rem})
+            counts = {"n_msgs_before": len(prior),
+                      "n_dev_msgs_before": sum(1 for p in prior if p[0] == "human"),
+                      "n_aireviewer_msgs_before": sum(1 for p in prior if p[0] == "ai_reviewer"),
+                      "n_ai_msgs_before": sum(1 for p in prior if p[0] == "ai")}
+            trg, trg_at = trigger(tl, i)
+            for act, hit, dest in (("notice", adm, notice), ("revisit", rem, revisit)):
+                if hit:
+                    dest[bucket][trg] += 1
+                    rows.append({"act": act, "bucket": bucket, "trigger": trg, "channel": "conversation",
+                                 "repo": e["repo"], "pr": e["prn"], "agent": e["agent"], "file_path": e["fp"],
+                                 "noticed_at": e["ts"], "triggered_at": trg_at,
+                                 "latency_days": _days(trg_at, e["ts"]), **counts, "text": hit})
 
-    # code channel (phase)
+    # code channel: phase + trigger (persist circumstance). AIDev lacks commit dates -> mostly spontaneous.
     code = {r["ph"]: r["n"] for r in conn.execute(
         "SELECT COALESCE(cm.phase,'no_commit') ph, COUNT(*) n FROM satd_instances i "
         "LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
         "WHERE i.channel='code_comment' AND i.introducer_kind='coding_agent' GROUP BY ph")}
 
-    # code channel (TRIGGER) — same taxonomy as the dialogue channel, computed from
-    # the developer turns that preceded the introducing commit. Persist to circumstance.
-    code_trg = Counter()
-    n_followthrough = 0          # committed AFTER the agent already admitted it in convo
-    # prefer the TRUE commit (committer) date fetched by fetch_commit_dates.py; fall back to
-    # git author date where the commit couldn't be resolved (deleted/DMCA).
+    code_trg = Counter(); n_ft = 0
     for inst in conn.execute(
-            "SELECT i.id id, cm.pr_id pr_id, COALESCE(cm.committed_at, cm.authored_at) ts, p.author author "
-            "FROM satd_instances i "
-            "LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
-            "LEFT JOIN prs p ON p.id=cm.pr_id "
+            "SELECT i.id id, cm.pr_id pr_id, COALESCE(cm.committed_at, cm.authored_at) ts "
+            "FROM satd_instances i LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
             "WHERE i.channel='code_comment' AND i.introducer_kind='coding_agent'").fetchall():
-        if preceded_by_convo_admission(conn, inst["pr_id"], inst["ts"], inst["author"]):
-            circ = "AFTER convo admission (follow-through)"
-            n_followthrough += 1
+        if preceded_by_convo_admission(conn, inst["pr_id"], inst["ts"]):
+            circ = "AFTER convo admission (follow-through)"; n_ft += 1
         else:
             circ = code_trigger(conn, inst["pr_id"], inst["ts"])
         code_trg[circ] += 1
@@ -206,60 +184,36 @@ def run():
         tot = sum(cnt.values())
         print(f"\n{title}: {tot}")
         for t in ORDER:
-            v = cnt.get(t, 0)
-            if v:
-                print(f"    {t:30} {v:4}  ({pct(v, tot)})")
-        sp = cnt.get("SPONTANEOUS (no dev signal)", 0)
-        print(f"    --> elicited {tot-sp} ({pct(tot-sp,tot)})   spontaneous {sp} ({pct(sp,tot)})")
+            if cnt.get(t, 0):
+                print(f"    {t:34} {cnt[t]:5}  ({pct(cnt[t], tot)})")
+        he = sum(cnt.get(t, 0) for t in HUMAN_ELICIT)
+        re_ = sum(cnt.get(t, 0) for t in AIREV_ELICIT)
+        sp = cnt.get("SPONTANEOUS (no signal)", 0)
+        print(f"    --> human-elicited {he} ({pct(he,tot)})  ai_reviewer-elicited {re_} ({pct(re_,tot)})  "
+              f"spontaneous {sp} ({pct(sp,tot)})")
 
-    print("=" * 66)
-    print("  AI NOTICING vs REVISITING ITS OWN TECHNICAL DEBT")
-    print("=" * 66)
+    print("=" * 70)
+    print("  AI debt-noticing / revisiting — SPONTANEOUS vs ELICITED (human / ai_reviewer)")
+    print("=" * 70)
     print("\n### NOTICING (admitting debt it leaves) ###")
-    show("  dialogue (replies/comments)", notice["dialogue"])
-    print(f"  PR descriptions (scope narration, separate): {sum(notice['pr_desc'].values())}")
-    print("\n### REVISITING (removing/resolving debt) ###")
-    show("  dialogue (replies/comments)", revisit["dialogue"])
-    print(f"  PR descriptions: {sum(revisit['pr_desc'].values())}")
-    ctot = sum(code.values())
-    print(f"\n### CODE-COMMENT SATD by commit phase (n={ctot}) ###")
-    print(f"  first_attempt (spontaneous): {code.get('first_attempt',0)}  |  "
-          f"revision (elicited): {code.get('revision',0)}  |  human_applied (not agent): {code.get('human_applied',0)}")
-
+    show("  dialogue", notice["dialogue"])
+    print(f"  PR descriptions (separate): {sum(notice['pr_desc'].values())}")
+    print("\n### REVISITING (removing debt) ###")
+    show("  dialogue", revisit["dialogue"])
     FT = "AFTER convo admission (follow-through)"
-    code_total = sum(code_trg.values())
-    indep = Counter({k: v for k, v in code_trg.items() if k != FT})   # independent code-noticing
-    indep_tot = sum(indep.values())
-    print(f"\n### CODE-COMMENT SATD by TRIGGER — same criteria as dialogue (n={code_total}) ###")
-    print(f"  EXCLUDED as follow-through (agent already admitted it in convo "
-          f"BEFORE this commit): {n_followthrough} ({pct(n_followthrough, code_total)})")
-    print(f"  independent code-channel noticing: {indep_tot}")
-    show("    of which, by trigger", indep)
-
-    # headline: across BOTH channels, how much of the AI's debt-noticing was
-    # developer-driven vs spontaneous — code channel counts INDEPENDENT instances only
-    # (follow-throughs are already represented in the dialogue channel).
-    def eli_spo(cnt):
-        tot = sum(cnt.values()); sp = cnt.get("SPONTANEOUS (no dev signal)", 0)
-        return tot, tot - sp, sp
-    dt, de, ds = eli_spo(notice["dialogue"])
-    kt, ke, ks = eli_spo(indep)
-    print("\n" + "=" * 66)
-    print("  HEADLINE: how AI debt-noticing was triggered (both channels)")
-    print("=" * 66)
-    print(f"  conversation admissions    : {dt:5}   elicited {de} ({pct(de,dt)})   spontaneous {ds} ({pct(ds,dt)})")
-    print(f"  code-comment (independent) : {kt:5}   elicited {ke} ({pct(ke,kt)})   spontaneous {ks} ({pct(ks,kt)})")
-    print(f"  [code follow-throughs already counted in conversation: {n_followthrough}]")
-    T, E, S = dt + kt, de + ke, ds + ks
-    print(f"  ALL noticing (de-duped)    : {T:5}   elicited {E} ({pct(E,T)})   spontaneous {S} ({pct(S,T)})")
+    indep = Counter({k: v for k, v in code_trg.items() if k != FT})
+    print(f"\n### CODE-COMMENT SATD by trigger (n={sum(code_trg.values())}) ###")
+    print(f"  follow-through (already admitted in convo): {n_ft}")
+    show("  independent code-noticing", indep)
 
     out = HERE / "agent_notice_revisit.csv"
     with open(out, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=["act", "bucket", "trigger", "channel", "repo", "pr", "agent",
                                           "file_path", "noticed_at", "triggered_at", "latency_days",
-                                          "n_msgs_before", "n_dev_msgs_before", "n_ai_msgs_before", "text"])
+                                          "n_msgs_before", "n_dev_msgs_before", "n_aireviewer_msgs_before",
+                                          "n_ai_msgs_before", "text"])
         w.writeheader(); w.writerows(rows)
-    print(f"\n{len(rows)} rows (notice + revisit, with trigger) -> {out.name}")
+    print(f"\n{len(rows)} rows -> {out.name}")
     conn.close()
 
 

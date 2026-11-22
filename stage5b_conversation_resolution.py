@@ -68,7 +68,10 @@ def run(cohort=None):
         # AI confirmation of removal (earliest), developer objection, agent engagement with the debt
         ai_conf_ts = None
         agent_engaged = False
-        dev_objected = any((e["review_state"] or "").upper() == "CHANGES_REQUESTED" for e in evs)
+        # "developer disagreed" = a HUMAN requested changes (per spec: the dev must stay silent or
+        # approve for a fix to count); an AI reviewer's CHANGES_REQUESTED is not the developer.
+        dev_objected = any((e["review_state"] or "").upper() == "CHANGES_REQUESTED"
+                           and e["actor_type"] == "human" for e in evs)
         for e in evs:
             if e["actor_type"] == "ai" and e["body"]:
                 if sd.is_debt_removal(e["body"]):

@@ -49,6 +49,36 @@ def agent_name(text):
     return None
 
 
+# AI CODE-REVIEW bots: they REVIEW PRs, they do not author the code. Distinct from coding agents
+# (which write the PR) and from CI/release automation. Checked BEFORE coding-agent patterns so
+# e.g. 'copilot-pull-request-reviewer' is a reviewer, not the authoring Copilot.
+AI_REVIEWER_RE = re.compile(
+    r"coderabbit|greptile|gemini-code-assist|sourcery|qodo|cubic-dev-ai|"
+    r"copilot-pull-request-reviewer|copilot-pr-review|openclaw-barnacle|\bbito\b|ellipsis-dev|"
+    r"pr-agent|codeant|korbit|entelligence|codescene|wispbit|recurse-ml|macroscope|penify|"
+    r"diamond-ai|codium|qodana|sweep-ai-review", re.I)
+
+
+def classify_review_actor(actor, pr_agent=None):
+    """Classify a PR-conversation participant (for AIDev 3-way RQ1 analysis):
+       'self_agent'  — the PR's OWN authoring agent commenting on its own PR (self-admission)
+       'ai_reviewer' — an AI review bot (coderabbit, …) OR a coding agent reviewing someone else's PR
+       'human'       — a person
+       'automation'  — CI / release / status automation (not a substantive reviewer)
+    `pr_agent` = the authoring agent of the PR this comment is on (prs.agent)."""
+    s = str(actor or "")
+    if AI_REVIEWER_RE.search(s):
+        return "ai_reviewer"
+    kind, name = classify_actor(s)
+    if kind == "coding_agent":
+        if pr_agent and name and name == str(pr_agent).strip().lower():
+            return "self_agent"
+        return "ai_reviewer"          # a coding agent on a DIFFERENT agent's PR == reviewing
+    if kind == "automation_bot":
+        return "automation"
+    return "human"
+
+
 def classify_actor(*identities):
     """(kind, agent_name) where kind in coding_agent | automation_bot | human.
 
