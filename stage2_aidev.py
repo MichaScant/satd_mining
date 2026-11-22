@@ -15,6 +15,7 @@ reviews  -> from pr_comments / pr_review_comments / pr_reviews -> review_events 
             column name doesn't match, it prints the file's columns and skips that table.
 """
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -26,12 +27,20 @@ from db import store
 from stage1_aidev import AIDEV_AGENT_MAP
 from stage3_aidev import _repo_num
 
-# review tables -> review_events columns. Edit if the diagnostics show different names.
+# review tables -> review_events columns (verified against hao-li/AIDev schema).
+# pr_key = how each row resolves to a PR: 'pr_id' (-> idmap) or 'pull_request_url' (API URL -> repo/num).
+# pr_review_comments has NO pr_id, only pull_request_url + a diff 'position' (our line anchor).
+# pr_reviews carries the review 'state' (APPROVED/CHANGES_REQUESTED) = the developer-agreement signal.
 COLMAP_REVIEW = {
-    "pr_comments.parquet":        {"ts": "created_at", "actor": "user", "body": "body", "kind": "comment", "file_path": None},
-    "pr_review_comments.parquet": {"ts": "created_at", "actor": "user", "body": "body", "kind": "inline", "file_path": "path"},
-    "pr_reviews.parquet":         {"ts": "submitted_at", "actor": "user", "body": "body", "kind": "review", "file_path": None},
+    "pr_comments.parquet":        {"ts": "created_at",   "actor": "user", "body": "body", "kind": "comment",
+                                   "file_path": None,   "position": None,       "state": None,    "pr_key": "pr_id"},
+    "pr_review_comments.parquet": {"ts": "created_at",   "actor": "user", "body": "body", "kind": "inline",
+                                   "file_path": "path", "position": "position", "state": None,    "pr_key": "pull_request_url"},
+    "pr_reviews.parquet":         {"ts": "submitted_at", "actor": "user", "body": "body", "kind": "review",
+                                   "file_path": None,   "position": None,       "state": "state", "pr_key": "pr_id"},
 }
+
+_PR_API_URL = re.compile(r"/repos/([^/\s]+/[^/\s]+)/pulls/(\d+)", re.I)   # api.github.com/repos/o/r/pulls/N
 
 
 def _idmap(d, agents_filter, exclude):
@@ -84,6 +93,8 @@ def load_commits(conn, d, idmap, prslook, chunk):
 
 
 def load_reviews(conn, d, idmap, prslook, chunk):
+    # in-scope (repo, pr_number) for rows that key by URL (pr_review_comments has no pr_id)
+    scope = {(repo, num) for (repo, num, name) in idmap.values()}
     n = 0
     for fname, cm in COLMAP_REVIEW.items():
         f = d / fname
@@ -92,29 +103,43 @@ def load_reviews(conn, d, idmap, prslook, chunk):
         have = pl.scan_parquet(f).collect_schema().names()
         need = [cm[k] for k in ("ts", "actor", "body") if cm.get(k)]
         miss = [c for c in need if c not in have]
-        if miss or "pr_id" not in have:
-            print(f"  (skip {fname}: missing {miss or ['pr_id']}; columns = {have})"); continue
-        sel = ["pr_id"] + [cm[k] for k in ("ts", "actor", "body", "file_path") if cm.get(k) and cm[k] in have]
-        ids = list(idmap)
-        for i in range(0, len(ids), chunk):
-            sub = pl.scan_parquet(f).filter(pl.col("pr_id").is_in(ids[i:i + chunk])).select(sel).collect()
-            for r in sub.iter_rows(named=True):
+        pr_key = cm["pr_key"]
+        if miss or pr_key not in have:
+            print(f"  (skip {fname}: missing {miss or [pr_key]}; columns = {have})"); continue
+        extra = [cm[k] for k in ("file_path", "position", "state") if cm.get(k) and cm[k] in have]
+        sel = list(dict.fromkeys([pr_key, cm["ts"], cm["actor"], cm["body"]] + extra))
+        df = pl.scan_parquet(f).select(sel).collect()   # few cols; single pass
+        got = 0
+        for r in df.iter_rows(named=True):
+            if pr_key == "pr_id":
                 meta = idmap.get(r["pr_id"])
                 if not meta:
                     continue
-                repo, num, name = meta
-                prid = prslook.get((repo, num))
-                if not prid:
+                repo, num, _ = meta
+            else:                                        # resolve via API pull_request_url
+                m = _PR_API_URL.search(str(r.get(pr_key) or ""))
+                if not m:
                     continue
-                actor = r.get(cm["actor"])
-                store.add_review_event(
-                    conn, pr_id=prid, ts=r.get(cm["ts"]), actor=str(actor or "") or None,
-                    actor_type=agents.classify_actor(actor)[0], kind=cm["kind"],
-                    file_path=(r.get(cm["file_path"]) if cm.get("file_path") else None),
-                    body=r.get(cm["body"]),
-                )
-                n += 1
-            conn.commit(); print(f"  {fname}: {n} review_events so far")
+                repo, num = m.group(1), int(m.group(2))
+                if (repo, num) not in scope:
+                    continue
+            prid = prslook.get((repo, num))
+            if not prid:
+                continue
+            actor = r.get(cm["actor"])
+            pos = r.get(cm["position"]) if cm.get("position") else None
+            store.add_review_event(
+                conn, pr_id=prid, ts=r.get(cm["ts"]), actor=str(actor or "") or None,
+                actor_type=agents.classify_actor(actor)[0], kind=cm["kind"],
+                file_path=(r.get(cm["file_path"]) if cm.get("file_path") else None),
+                body=r.get(cm["body"]),
+                position=(int(pos) if pos is not None else None),
+                review_state=(r.get(cm["state"]) if cm.get("state") else None),
+            )
+            n += 1; got += 1
+            if got % 50000 == 0:
+                conn.commit(); print(f"  {fname}: {got} (total {n}) ...", flush=True)
+        conn.commit(); print(f"  {fname}: +{got} (total {n})", flush=True)
     print(f"done: {n} AIDev review_events loaded")
 
 

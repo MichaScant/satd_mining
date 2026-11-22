@@ -81,6 +81,8 @@ def init_db(conn=None):
         ("reviewer_flags", "file_path", "TEXT"),
         ("reviewer_flags", "ts", "TEXT"),
         ("reviewer_flags", "level", "TEXT"),
+        ("review_events", "position", "INTEGER"),    # diff position of an inline review comment
+        ("review_events", "review_state", "TEXT"),   # pr_reviews.state: APPROVED|CHANGES_REQUESTED|…
     ):
         existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if col not in existing:
@@ -112,13 +114,13 @@ def upsert_pr(conn, repo, pr_number, **cols) -> int:
 
 
 def add_review_event(conn, pr_id, ts=None, actor=None, actor_type=None,
-                     kind=None, file_path=None, body=None):
+                     kind=None, file_path=None, body=None, position=None, review_state=None):
     uid = _uid(pr_id, ts, actor, kind, file_path, body)
     conn.execute(
         "INSERT OR IGNORE INTO review_events "
-        "(pr_id, ts, actor, actor_type, kind, file_path, body, event_uid) "
-        "VALUES (?,?,?,?,?,?,?,?)",
-        (pr_id, ts, actor, actor_type, kind, file_path, body, uid),
+        "(pr_id, ts, actor, actor_type, kind, file_path, body, position, review_state, event_uid) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (pr_id, ts, actor, actor_type, kind, file_path, body, position, review_state, uid),
     )
 
 

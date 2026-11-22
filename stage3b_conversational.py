@@ -31,7 +31,7 @@ from db import store
 
 
 def _store_conv(conn, repo, pr_number, intro_sentinel, path, raw, actor_class,
-                source_kind, ts, utterance_id=None, circumstance=None):
+                source_kind, ts, utterance_id=None, circumstance=None, line_span=None):
     kw = sd.detect_conversational(raw)
     if not kw:
         return 0
@@ -44,6 +44,7 @@ def _store_conv(conn, repo, pr_number, intro_sentinel, path, raw, actor_class,
         introducing_pr=pr_number, keyword=kw, satd_type=sd.classify_type(raw),
         channel="conversation", source_kind=source_kind, utterance_id=utterance_id,
         author_class=actor_class, circumstance=circumstance,
+        line_span=(str(line_span) if line_span is not None else None),
     )
     store.enqueue_validation(conn, "flagged_satd_conv", "satd_instances", inst_id,
                              {"repo": repo, "pr": pr_number, "source_kind": source_kind,
@@ -92,7 +93,7 @@ def run():
 
     # (2)/(3) utterances — agent replies (admission) and developer requests
     for j, e in enumerate(conn.execute(
-        f"SELECT e.id, e.pr_id, e.ts, e.actor_type, e.file_path, e.body, "
+        f"SELECT e.id, e.pr_id, e.ts, e.actor_type, e.file_path, e.body, e.position, "
         f"p.repo, p.pr_number FROM review_events e JOIN prs p ON p.id=e.pr_id "
         f"WHERE e.body IS NOT NULL AND {scope}"
     ).fetchall(), 1):
@@ -106,7 +107,7 @@ def run():
         got = _store_conv(
             conn, e["repo"], e["pr_number"], f"utt:{e['id']}", path, e["body"],
             e["actor_type"], source_kind, e["ts"], utterance_id=e["id"],
-            circumstance=circumstance,
+            circumstance=circumstance, line_span=e["position"],
         )
         if got:
             if source_kind == "agent_reply":
