@@ -102,67 +102,102 @@ def fig_aireviewer_by_tool(c):
 
 # ---------------------------------------------------------------- 3. revisits before resolution
 def fig_revisit_before_resolution(c):
+    # resolved -> revisits strictly BEFORE the fix (n_revisits_pre_res, from the fetched commit dates);
+    # alive -> total in-method revisits (n_ai_near_edits — there is no fix to bound against).
+    # Split per authoring agent (the agent that introduced the debt) as small multiples.
     rows = c.execute(
-        "SELECT i.status st, i.n_ai_near_edits nr FROM satd_instances i "
+        "SELECT i.agent_name ag, i.status st, i.n_ai_near_edits nr, i.n_revisits_pre_res npr "
+        "FROM satd_instances i "
         "JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "
-        "WHERE p.cohort='aidev' AND i.channel='code_comment' AND i.n_ai_near_edits IS NOT NULL").fetchall()
+        "WHERE p.cohort='aidev' AND i.channel='code_comment' AND i.n_ai_near_edits IS NOT NULL "
+        "AND i.agent_name IS NOT NULL").fetchall()
     def bucket(n): return "0" if n == 0 else ("1" if n == 1 else ("2" if n == 2 else "3+"))
-    res = Counter(); ali = Counter()
-    rs = al = 0; rsum = asum = 0
+    res = defaultdict(Counter); ali = defaultdict(Counter)
+    rs = defaultdict(int); al = defaultdict(int); rsum = defaultdict(int); asum = defaultdict(int)
     for r in rows:
-        nr = r["nr"] or 0
+        ag = r["ag"]
         if r["st"] in RESOLVED:
-            res[bucket(nr)] += 1; rs += 1; rsum += nr
+            n = r["npr"] if r["npr"] is not None else (r["nr"] or 0)   # before-resolution count
+            res[ag][bucket(n)] += 1; rs[ag] += 1; rsum[ag] += n
         elif r["st"] == "alive":
-            ali[bucket(nr)] += 1; al += 1; asum += nr
-    print("\n[revisits before resolution — AIDev code SATD]")
-    print(f"   resolved: n={rs}  mean revisits={rsum/rs:.2f}" if rs else "   resolved: n=0")
-    print(f"   alive:    n={al}  mean revisits={asum/al:.2f}" if al else "   alive: n=0")
+            n = r["nr"] or 0
+            ali[ag][bucket(n)] += 1; al[ag] += 1; asum[ag] += n
+    agents = [a for a in _agents_present(c) if (rs[a] or al[a])]
+    if not agents:
+        print("  [revisits before resolution] no per-agent data — skipping"); return
+    print("\n[revisits before resolution — AIDev code SATD, per authoring agent]")
+    for a in agents:
+        rmean = f"{rsum[a]/rs[a]:.2f}" if rs[a] else "—"
+        amean = f"{asum[a]/al[a]:.2f}" if al[a] else "—"
+        print(f"   {a:8} resolved n={rs[a]:5} mean-before-fix={rmean:>5}   "
+              f"alive n={al[a]:5} mean-total={amean:>5}")
     order = ["0", "1", "2", "3+"]
     import numpy as np
     x = np.arange(len(order)); w = 0.4
-    fig, ax = plt.subplots(figsize=(7, 4.5))
-    ax.bar(x - w/2, [res[b] for b in order], w, label="resolved", color="#3bb08f")
-    ax.bar(x + w/2, [ali[b] for b in order], w, label="alive", color="#8a8a8a")
-    ax.set_xticks(x); ax.set_xticklabels([f"{b} revisits" for b in order])
-    ax.set_ylabel("SATD instances"); ax.set_title("In-method revisits before resolution (AIDev)"); ax.legend()
-    fig.tight_layout(); fig.savefig(HERE / "rq_revisit_before_resolution.png", dpi=150); plt.close(fig)
+    ncol = min(3, len(agents)); nrow = (len(agents) + ncol - 1) // ncol
+    fig, axes = plt.subplots(nrow, ncol, figsize=(4.2 * ncol, 3.4 * nrow), squeeze=False)
+    for idx, a in enumerate(agents):
+        ax = axes[idx // ncol][idx % ncol]
+        ax.bar(x - w/2, [res[a][b] for b in order], w, label="resolved", color="#3bb08f")
+        ax.bar(x + w/2, [ali[a][b] for b in order], w, label="alive", color="#8a8a8a")
+        ax.set_xticks(x); ax.set_xticklabels([f"{b}" for b in order])
+        rmean = f"{rsum[a]/rs[a]:.2f}" if rs[a] else "—"
+        ax.set_title(f"{a}  (resolved n={rs[a]}, μ-before-fix={rmean})", fontsize=10)
+        ax.set_ylabel("SATD instances")
+        if idx == 0:
+            ax.legend(fontsize=8)
+    for j in range(len(agents), nrow * ncol):          # hide unused panels
+        axes[j // ncol][j % ncol].axis("off")
+    fig.suptitle("In-method revisits before resolution, by authoring agent (AIDev)", fontsize=13)
+    fig.supxlabel("in-method revisits")
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
+    fig.savefig(HERE / "rq_revisit_before_resolution.png", dpi=150); plt.close(fig)
     print("  saved rq_revisit_before_resolution.png")
 
 
-# ---------------------------------------------------------------- 4. who-spotted -> resolved sooner?
+# ---------------------------------------------------------------- 4. AI-spotted (no dev) -> resolved sooner/more?
 def fig_who_spotted_resolution(c):
-    # AIDev merged code SATD with a first-pointer and a survival measurement
-    rows = c.execute(
-        "SELECT i.first_pointer_class fp, i.status st, i.survival_days sd FROM satd_instances i "
-        "JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "
-        "WHERE p.cohort='aidev' AND i.channel='code_comment' AND i.first_pointer_class IS NOT NULL "
-        "AND i.survival_days IS NOT NULL").fetchall()
-    grp = {"ai": [], "ai_reviewer": [], "human": []}
-    for r in rows:
-        if r["fp"] in grp:
-            grp[r["fp"]].append((r["st"] in RESOLVED, r["sd"]))
-    print("\n[resolution by who pointed it out first — AIDev, merged]")
-    labels, rates, med = [], [], []
+    # conversation self-admissions grouped by ELICITATION (code first_pointer is degenerate: a code
+    # SATD exists before any review, so it is always 'ai'-first). Resolution rate = stage5b conv_fixed;
+    # time = the linked code SATD's survival_days (same repo/pr/file) where it resolved.
     import statistics as stt
-    for k in ("ai", "ai_reviewer", "human"):
+    HUM = {"dev named debt", "dev alluded to error", "dev changes_requested",
+           "dev raised concern/question", "neutral dev comment before"}
+    REV = {"ai_reviewer named debt", "ai_reviewer raised concern", "neutral ai_reviewer comment before"}
+    rows = c.execute(
+        "SELECT i.circumstance circ, i.status st, "
+        " (SELECT cs.survival_days FROM satd_instances cs WHERE cs.repo=i.repo "
+        "  AND cs.introducing_pr=i.introducing_pr AND cs.path=i.path AND cs.channel='code_comment' "
+        "  AND cs.survival_days IS NOT NULL LIMIT 1) surv "
+        "FROM satd_instances i JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "
+        "WHERE p.cohort='aidev' AND i.channel='conversation' AND i.source_kind='agent_reply' "
+        "AND i.circumstance IS NOT NULL").fetchall()
+    grp = {"spontaneous": [], "human-elicited": [], "ai_reviewer-elicited": []}
+    for r in rows:
+        b = "human-elicited" if r["circ"] in HUM else ("ai_reviewer-elicited" if r["circ"] in REV else "spontaneous")
+        grp[b].append((r["st"] == "conv_fixed", r["surv"]))
+    print("\n[AI-spotted-without-dev -> resolved sooner/more? (conversation elicitation)]")
+    labels, rates, med = [], [], []
+    for k in ("spontaneous", "ai_reviewer-elicited", "human-elicited"):
         g = grp[k]
         if not g:
             continue
-        rate = 100 * sum(1 for ok, _ in g if ok) / len(g)
-        times = [sd for ok, sd in g if ok and sd is not None]
+        rate = 100 * sum(1 for fx, _ in g if fx) / len(g)
+        times = [s for _, s in g if s is not None]
         m = stt.median(times) if times else float("nan")
         labels.append(f"{k}\n(n={len(g)})"); rates.append(rate); med.append(m)
-        print(f"   {k:11} n={len(g):5}  resolved={rate:.1f}%   median days-to-resolve={m:.1f}" if times
-              else f"   {k:11} n={len(g):5}  resolved={rate:.1f}%   (no resolved times)")
+        print(f"   {k:22} n={len(g):5}  conv_fixed={rate:.1f}%  "
+              f"median linked-code days-to-resolve={m:.1f}" if times
+              else f"   {k:22} n={len(g):5}  conv_fixed={rate:.1f}%  (no linked resolved times)")
     if not labels:
-        print("  [who-spotted] no data — skipping"); return
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(10, 4.5))
-    a1.bar(labels, rates, color=["#3bb08f", "#c05a8f", "#e07b39"][:len(labels)])
-    a1.set_ylabel("% resolved"); a1.set_title("Resolution rate by who spotted it")
-    a2.bar(labels, med, color=["#3bb08f", "#c05a8f", "#e07b39"][:len(labels)])
-    a2.set_ylabel("median days to resolve"); a2.set_title("Time-to-resolve by who spotted it")
-    fig.suptitle("Does AI-spotted debt (no developer) resolve sooner?")
+        print("  [who-spotted] no conversation circumstance — run analyze_reviewer_elicited_satd.py first; skipping")
+        return
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4.5))
+    cols = ["#3bb08f", "#c05a8f", "#e07b39"][:len(labels)]
+    a1.bar(labels, rates, color=cols); a1.set_ylabel("% conv_fixed"); a1.set_title("Resolution rate by how it was spotted")
+    a2.bar(labels, med, color=cols); a2.set_ylabel("median days to resolve (linked code)")
+    a2.set_title("Time-to-resolve by how it was spotted")
+    fig.suptitle("Does AI-spotted debt (spontaneous / AI-reviewer, no developer) resolve sooner or more often?")
     fig.tight_layout(); fig.savefig(HERE / "rq_who_spotted_resolution.png", dpi=150); plt.close(fig)
     print("  saved rq_who_spotted_resolution.png")
 

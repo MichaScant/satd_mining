@@ -86,9 +86,10 @@ def _scan_agent(conn, details, name, prs_list, per_agent, chunk, examined=None):
 
 
 def run(aidev_dir="data/aidev", agents_filter=None, exclude=None, per_agent=2000, chunk=5000,
-        record_sample=False):
+        record_sample=False, merged_only=False):
     d = Path(aidev_dir)
-    pr = pl.read_parquet(d / "pull_request.parquet", columns=["id", "html_url", "agent"])
+    cols = ["id", "html_url", "agent"] + (["merged_at"] if merged_only else [])
+    pr = pl.read_parquet(d / "pull_request.parquet", columns=cols)
 
     want = set(AIDEV_AGENT_MAP)
     if agents_filter:
@@ -100,13 +101,19 @@ def run(aidev_dir="data/aidev", agents_filter=None, exclude=None, per_agent=2000
 
     from collections import defaultdict
     by_agent = defaultdict(list)   # agent_name -> [(pr_id, repo, pr_number), ...]
+    skipped_unmerged = 0
     for row in pr.iter_rows(named=True):
         lbl = str(row["agent"] or "").strip().lower()
         if lbl not in want:
             continue
+        if merged_only and not row.get("merged_at"):   # only gather MERGED PRs; drop the rest
+            skipped_unmerged += 1
+            continue
         repo, num = _repo_num(row["html_url"])
         if repo:
             by_agent[AIDEV_AGENT_MAP[lbl]].append((row["id"], repo, num))
+    if merged_only:
+        print(f"MERGED-ONLY scan: dropped {skipped_unmerged} unmerged PRs")
     print("PRs per agent in scope:", {k: len(v) for k, v in by_agent.items()})
 
     conn = store.connect(); store.init_db(conn)
@@ -146,4 +153,7 @@ if __name__ == "__main__":
     ap.add_argument("--record-sample", dest="record_sample", action="store_true",
                     help="write the examined-PR manifest to aidev_sample_prs (idempotent; for scoping "
                          "conversation/reviewer scans to the same PRs as the code scan)")
+    ap.add_argument("--merged-only", dest="merged_only", action="store_true",
+                    help="gather ONLY merged PRs (merged_at NOT NULL) — unmerged PRs are dropped "
+                         "so every SATD found is trackable")
     run(**vars(ap.parse_args()))

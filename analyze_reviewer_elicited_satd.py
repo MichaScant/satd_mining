@@ -103,6 +103,36 @@ def code_trigger(conn, pr_id, authored_at):
     return trigger(tl + [("ai", "", None, None, None)], len(tl))[0]   # classify over all prior turns
 
 
+def circumstance_before(conn, pr_id, before_ts):
+    """Elicitation circumstance of a conversation admission, from the PR turns BEFORE its timestamp."""
+    tl = [(e["actor_type"], sd.strip_code(e["body"] or ""), e["kind"], e["ts"], e["review_state"])
+          for e in conn.execute(
+            "SELECT actor_type, kind, body, ts, review_state FROM review_events "
+            "WHERE pr_id=? AND ts IS NOT NULL AND ts<? AND body IS NOT NULL ORDER BY ts, id",
+            (pr_id, before_ts))]
+    return trigger(tl + [("ai", "", None, None, None)], len(tl))[0]
+
+
+def persist_conversation_circumstance(conn):
+    """Write each conversation self-admission's elicitation circumstance to satd_instances, so it is
+    joinable to resolution (answers 'AI-spotted-without-dev -> resolved sooner/more?')."""
+    rows = conn.execute(
+        "SELECT i.id id, i.utterance_id uid, p.id pr_id FROM satd_instances i "
+        "JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "
+        "WHERE i.channel='conversation' AND i.source_kind='agent_reply' AND i.utterance_id IS NOT NULL"
+    ).fetchall()
+    n = 0
+    for r in rows:
+        ev = conn.execute("SELECT ts FROM review_events WHERE id=?", (r["uid"],)).fetchone()
+        if not ev or not ev["ts"]:
+            continue
+        conn.execute("UPDATE satd_instances SET circumstance=? WHERE id=?",
+                     (circumstance_before(conn, r["pr_id"], ev["ts"]), r["id"]))
+        n += 1
+    conn.commit()
+    return n
+
+
 def preceded_by_convo_admission(conn, pr_id, authored_at):
     """Did the authoring agent already self-admit this debt in conversation BEFORE the commit?"""
     if not pr_id or not authored_at:
@@ -177,6 +207,9 @@ def run():
         code_trg[circ] += 1
         conn.execute("UPDATE satd_instances SET circumstance=? WHERE id=?", (circ, inst["id"]))
     conn.commit()
+
+    nconv = persist_conversation_circumstance(conn)     # for the elicitation->resolution analysis
+    print(f"persisted conversation circumstance on {nconv} agent_reply instances")
 
     pct = lambda n, d: f"{100*n/d:.1f}%" if d else "n/a"
 
