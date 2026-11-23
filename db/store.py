@@ -83,7 +83,17 @@ def init_db(conn=None):
         ("reviewer_flags", "level", "TEXT"),
         ("review_events", "position", "INTEGER"),    # diff position of an inline review comment
         ("review_events", "review_state", "TEXT"),   # pr_reviews.state: APPROVED|CHANGES_REQUESTED|…
+        # dev<->agent messages about the SATD's file BEFORE it was resolved (stage5d)
+        ("satd_instances", "n_dev_msgs_pre", "INTEGER"),
+        ("satd_instances", "n_agent_msgs_pre", "INTEGER"),
+        ("satd_instances", "n_aireviewer_msgs_pre", "INTEGER"),
+        ("satd_instances", "n_revisits_pre_res", "INTEGER"),  # revisits strictly BEFORE resolution (needs commit dates)
+        ("aidev_commit_dates", None, None),           # created below (needs a 2-col schema, not ALTER)
     ):
+        if table == "aidev_commit_dates":
+            conn.execute("CREATE TABLE IF NOT EXISTS aidev_commit_dates "
+                         "(sha TEXT PRIMARY KEY, committed_at TEXT, authored_at TEXT)")
+            continue
         existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if col not in existing:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")

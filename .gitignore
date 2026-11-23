@@ -25,7 +25,10 @@ secrets.*
 .idea/
 .vscode/
 
-# Optional: uncomment to keep generated outputs out of git
-# graphs/
+# Generated graph outputs (derived — regenerate from the DB)
+*.png
+graphs/
+
+# Optional: uncomment to keep other generated outputs out of git
 # *.csv
 # report.txt
