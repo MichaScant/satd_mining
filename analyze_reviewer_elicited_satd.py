@@ -195,10 +195,19 @@ def run():
         "LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
         "WHERE i.channel='code_comment' AND i.introducer_kind='coding_agent' GROUP BY ph")}
 
+    conn.execute("CREATE TABLE IF NOT EXISTS aidev_commit_dates (sha TEXT PRIMARY KEY, "
+                 "committed_at TEXT, authored_at TEXT)")
     code_trg = Counter(); n_ft = 0
+    # pr_id from the instance's PR (always available) so elicitation can be scanned even when the
+    # commit is absent from `commits`; date falls back to the fetched aidev_commit_dates (recovers the
+    # ~74% of code commits that `commits` lacks a date for -> no longer force-defaulted to SPONTANEOUS).
     for inst in conn.execute(
-            "SELECT i.id id, cm.pr_id pr_id, COALESCE(cm.committed_at, cm.authored_at) ts "
-            "FROM satd_instances i LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
+            "SELECT i.id id, p.id pr_id, "
+            "COALESCE(cm.committed_at, cm.authored_at, d.committed_at, d.authored_at) ts "
+            "FROM satd_instances i "
+            "JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "
+            "LEFT JOIN commits cm ON cm.sha=i.introducing_sha "
+            "LEFT JOIN aidev_commit_dates d ON d.sha=i.introducing_sha "
             "WHERE i.channel='code_comment' AND i.introducer_kind='coding_agent'").fetchall():
         if preceded_by_convo_admission(conn, inst["pr_id"], inst["ts"]):
             circ = "AFTER convo admission (follow-through)"; n_ft += 1
@@ -210,6 +219,19 @@ def run():
 
     nconv = persist_conversation_circumstance(conn)     # for the elicitation->resolution analysis
     print(f"persisted conversation circumstance on {nconv} agent_reply instances")
+
+    # classify pr_body admissions (were left NULL -> silently counted as spontaneous). The PR body is
+    # the agent's own description, so its signal is any turn BEFORE the PR was opened (usually none).
+    npb = 0
+    for r in conn.execute(
+            "SELECT i.id id, p.id pr_id, p.created_at ts FROM satd_instances i "
+            "JOIN prs p ON p.repo=i.repo AND p.pr_number=i.introducing_pr "
+            "WHERE i.channel='conversation' AND i.source_kind='pr_body'").fetchall():
+        circ = circumstance_before(conn, r["pr_id"], r["ts"]) if r["ts"] else "SPONTANEOUS (no signal)"
+        conn.execute("UPDATE satd_instances SET circumstance=? WHERE id=?", (circ, r["id"]))
+        npb += 1
+    conn.commit()
+    print(f"persisted pr_body circumstance on {npb} instances")
 
     pct = lambda n, d: f"{100*n/d:.1f}%" if d else "n/a"
 

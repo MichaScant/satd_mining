@@ -53,18 +53,25 @@ def _store_conv(conn, repo, pr_number, intro_sentinel, path, raw, actor_class,
 
 
 def _scope(conn):
-    """SQL predicate (on alias `p`=prs) restricting AIDev to the examined sample so conversation
-    scanning covers the SAME PRs as the code scan (Suzhen-parity). Non-AIDev cohorts are unaffected.
-    If the manifest is missing, AIDev PRs are excluded (with a warning) rather than scanning all 261k."""
-    has = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='aidev_sample_prs'").fetchone()
-    if has:
-        return ("(p.cohort <> 'aidev' OR EXISTS (SELECT 1 FROM aidev_sample_prs s "
-                "WHERE s.repo=p.repo AND s.pr_number=p.pr_number))")
-    n_aidev = conn.execute("SELECT COUNT(*) n FROM prs WHERE cohort='aidev'").fetchone()["n"]
-    if n_aidev:
-        print("  WARNING: aidev_sample_prs manifest missing — run "
-              "`stage3_aidev.py --record-sample` first; SKIPPING AIDev conversations this pass.", flush=True)
-    return "p.cohort <> 'aidev'"
+    """SQL predicate (on alias `p`=prs) selecting which PRs to scan for conversational SATD.
+
+    DEFAULT (AIDEV_CONV_SCOPE=full): scan ALL PRs' discussions. The agent<->developer discussion is
+    where debt is introduced/admitted and where dev-elicitation is observable, so it must NOT be
+    capped to the code-scan sample — doing that only read 31% of AIDev agent turns and starved the
+    (well-classified) discussion channel, inflating the spontaneous share. Debt introduced in a
+    discussion is captured regardless of whether that PR was in the code sample.
+
+    AIDEV_CONV_SCOPE=sample: old Suzhen-parity behaviour (AIDev restricted to aidev_sample_prs)."""
+    import os
+    mode = os.environ.get("AIDEV_CONV_SCOPE", "full").lower()
+    if mode == "sample":
+        has = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='aidev_sample_prs'").fetchone()
+        if has:
+            return ("(p.cohort <> 'aidev' OR EXISTS (SELECT 1 FROM aidev_sample_prs s "
+                    "WHERE s.repo=p.repo AND s.pr_number=p.pr_number))")
+        print("  WARNING: aidev_sample_prs missing — run stage3_aidev --record-sample; SKIPPING AIDev.", flush=True)
+        return "p.cohort <> 'aidev'"
+    return "1=1"            # full: scan every PR's discussion (all cohorts)
 
 
 def run():
@@ -82,6 +89,8 @@ def run():
         f"SELECT id, repo, pr_number, author_type, title, body FROM prs p WHERE {scope}"
     ).fetchall(), 1):
         text = " ".join(x for x in (p["title"], p["body"]) if x)
+        if sd.is_tool_post(text):            # auto-generated PR summary, not a genuine agent admission
+            continue
         n_body += _store_conv(
             conn, p["repo"], p["pr_number"], f"prbody:{p['id']}",
             f"__pr__/{p['pr_number']}", text, p["author_type"], "pr_body", None,
@@ -97,8 +106,13 @@ def run():
         f"p.repo, p.pr_number FROM review_events e JOIN prs p ON p.id=e.pr_id "
         f"WHERE e.body IS NOT NULL AND {scope}"
     ).fetchall(), 1):
-        if e["actor_type"] == "ai":                        # the PR's own authoring agent (self-admission)
-            source_kind, circumstance = "agent_reply", None
+        if e["actor_type"] == "ai":                        # the PR's own authoring agent account
+            if sd.is_review_bot_post(e["body"]):           # review-bot output (Bugbot/Devin Review/…)
+                source_kind, circumstance = "ai_reviewer_flag", "flagged_by_ai_reviewer"  # -> reviewbot, NOT spontaneous
+            elif sd.is_tool_post(e["body"]):               # summary/validation/CI noise -> not an admission
+                continue
+            else:
+                source_kind, circumstance = "agent_reply", None   # genuine agent self-admission
         elif e["actor_type"] == "ai_reviewer":             # an AI review bot flagging debt (labeled, not self-admitted)
             source_kind, circumstance = "ai_reviewer_flag", "flagged_by_ai_reviewer"
         elif e["actor_type"] == "human":

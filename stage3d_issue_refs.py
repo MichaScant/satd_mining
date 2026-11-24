@@ -123,6 +123,16 @@ def run(cohort="aidev"):
     conn = store.connect()
     _ensure_table(conn)
     conn.execute("CREATE INDEX IF NOT EXISTS ix_re_prid ON review_events(pr_id)")
+    # one-time cleanup of pr_body duplicates from earlier runs (NULL utterance_id defeated the UNIQUE
+    # constraint since SQLite treats NULLs as distinct). DELETE dupes FIRST — treating NULL and -1 as
+    # the same logical row (COALESCE) and keeping the validated one (or lowest id) so stage3e's fetched
+    # state survives — THEN normalize the survivor to -1 (now at most one per key, so no collision).
+    conn.execute("""DELETE FROM aidev_issue_links WHERE id NOT IN (
+        SELECT id FROM (SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY repo, pr_number, issue_repo, issue_number, source_kind, COALESCE(utterance_id, -1)
+            ORDER BY (valid IS NOT NULL) DESC, id ASC) rn FROM aidev_issue_links) WHERE rn=1)""")
+    conn.execute("UPDATE aidev_issue_links SET utterance_id=-1 "
+                 "WHERE source_kind='pr_body' AND utterance_id IS NULL")
     conn.commit()
 
     # PRs (in this cohort) that carry at least one SATD instance
@@ -171,7 +181,8 @@ def run(cohort="aidev"):
     for n, p in enumerate(pr_rows, 1):
         ag = agent_of.get((p["repo"], p["pr_number"]))
         body = " ".join(x for x in (p["title"], p["body"]) if x)
-        consider(p["repo"], p["pr_number"], body, "pr_body", None, ag)
+        consider(p["repo"], p["pr_number"], body, "pr_body", -1, ag)   # -1 sentinel (not NULL) so the
+                                                                        # UNIQUE constraint dedupes re-runs
         for e in conn.execute("SELECT id, body FROM review_events WHERE pr_id=? AND body IS NOT NULL",
                               (p["pr_dbid"],)):
             consider(p["repo"], p["pr_number"], e["body"], "utterance", e["id"], ag)

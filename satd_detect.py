@@ -213,6 +213,39 @@ def is_debt_removal(text):
     return None
 
 
+# Posts made UNDER a coding-agent's bot account that are NOT the agent genuinely admitting its own
+# debt. Two kinds, handled differently:
+#   REVIEW-BOT output (Bugbot, Devin Review, Codex Review, Cursor Bugbot, Greptile, "found N issues",
+#     severity-tagged findings, AI-PR-review) -> the bot is FINDING debt = review role. Route to the
+#     reviewbot channel (ai_reviewer_flag). Must NOT count as the agent spontaneously noticing.
+#   NOISE (PR summaries, validation evidence, CI/greeting boilerplate, "can help with this PR") ->
+#     not an admission and not a review -> excluded entirely.
+_REVIEW_BOT_RE = re.compile(
+    r"\bbugbot\b|cursor\s+bugbot|devin\s+review|<!--\s*devin-review|codex\s+review|\bgreptile\b|"
+    r"has\s+reviewed\s+your\s+changes|found\s+\d+\s+(potential\s+)?(issue|bug)|potential\s+issues?\b|"
+    r"\b(low|medium|high|critical)\s+severity\b|pr_ai_review|ai[-\s]prove[-\s]fix|"
+    r"\bai\s+pr\s+review\b|/ai-review|<!--\s*description\s+start|devin-review-comment", re.I)
+
+_NOISE_RE = re.compile(
+    r"CURSOR_SUMMARY|ai_review_metrics|fix\s+validation\s+evidence|devin\s+ai\s+engineer|"
+    r"cursor\s+agent\s+can\s+help|can\s+help\s+with\s+this\s+pull\s+request|"
+    r"generated\s+with\s+\[?claude|archive\s+generated\s+assets|\[skip\s+ci\]|"
+    r"<!--\s*(cursor|codex|devin|greptile|copilot)", re.I)
+
+
+def is_review_bot_post(text):
+    """True if the post is REVIEW-BOT output (finding/flagging debt) — route to the reviewbot channel,
+    never the agent-spontaneous channel, even though the posting account is the coding agent's."""
+    return bool(_REVIEW_BOT_RE.search(text or ""))
+
+
+def is_tool_post(text):
+    """True if NOT a genuine agent admission: a review-bot post (see is_review_bot_post) OR pure noise
+    (summary/validation/CI boilerplate). review-bot -> reviewbot channel; the rest -> excluded."""
+    t = text or ""
+    return bool(_REVIEW_BOT_RE.search(t) or _NOISE_RE.search(t))
+
+
 def normalize(text):
     """Strip comment markers, collapse whitespace, lowercase — stable tracking identity."""
     t = re.sub(r"^[\s/#*<!>=-]+|[\s*/>=-]+$", "", (text or "").strip())
